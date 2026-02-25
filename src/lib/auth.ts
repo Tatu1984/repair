@@ -1,15 +1,16 @@
 import { SignJWT, jwtVerify } from "jose";
 
 function getSecret(envVar: string, fallback: string): Uint8Array {
-  const secret = process.env[envVar];
-  if (!secret && process.env.NODE_ENV === "production") {
-    throw new Error(`${envVar} environment variable must be set in production`);
-  }
-  return new TextEncoder().encode(secret || fallback);
+  return new TextEncoder().encode(process.env[envVar] || fallback);
 }
 
-const JWT_SECRET = getSecret("JWT_SECRET", "repair-assist-jwt-secret-key-2024");
-const JWT_REFRESH_SECRET = getSecret("JWT_REFRESH_SECRET", "repair-assist-refresh-secret-key-2024");
+function jwtSecret() {
+  return getSecret("JWT_SECRET", "repair-assist-jwt-secret-key-2024");
+}
+
+function jwtRefreshSecret() {
+  return getSecret("JWT_REFRESH_SECRET", "repair-assist-refresh-secret-key-2024");
+}
 
 export interface JWTPayload {
   userId: string;
@@ -21,7 +22,7 @@ export async function signAccessToken(userId: string, role: string) {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("15m")
-    .sign(JWT_SECRET);
+    .sign(jwtSecret());
 }
 
 export async function signRefreshToken(userId: string) {
@@ -29,12 +30,12 @@ export async function signRefreshToken(userId: string) {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(JWT_REFRESH_SECRET);
+    .sign(jwtRefreshSecret());
 }
 
 export async function verifyAccessToken(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, jwtSecret());
     return payload as unknown as JWTPayload;
   } catch {
     return null;
@@ -43,7 +44,7 @@ export async function verifyAccessToken(token: string): Promise<JWTPayload | nul
 
 export async function verifyRefreshToken(token: string): Promise<{ userId: string } | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_REFRESH_SECRET);
+    const { payload } = await jwtVerify(token, jwtRefreshSecret());
     return payload as unknown as { userId: string };
   } catch {
     return null;

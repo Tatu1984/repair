@@ -2,15 +2,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-function getSecret(envVar: string, fallback: string): Uint8Array {
-  const secret = process.env[envVar];
-  if (!secret && process.env.NODE_ENV === "production") {
-    throw new Error(`${envVar} environment variable must be set in production`);
-  }
-  return new TextEncoder().encode(secret || fallback);
+function jwtSecret(): Uint8Array {
+  return new TextEncoder().encode(
+    process.env.JWT_SECRET || "repair-assist-jwt-secret-key-2024"
+  );
 }
-
-const JWT_SECRET = getSecret("JWT_SECRET", "repair-assist-jwt-secret-key-2024");
 
 const publicPaths = ["/", "/login", "/api/v1/auth"];
 
@@ -50,7 +46,7 @@ export async function middleware(request: NextRequest) {
     }
 
     try {
-      await jwtVerify(token, JWT_SECRET);
+      await jwtVerify(token, jwtSecret());
       return NextResponse.next();
     } catch {
       // Token invalid/expired — redirect to login
