@@ -21,7 +21,10 @@ import {
   Zap,
   Wrench,
   Clock,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,101 +45,59 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// --- Mock Data ---
+import { useAllMechanics, useVerifyMechanic } from "@/lib/hooks/use-mechanics";
 
-const mechanics = [
-  {
-    id: "MEC-001",
-    name: "Ravi Sharma",
-    phone: "+91 98765 43210",
-    location: "Lajpat Nagar, Delhi",
-    skills: ["2W", "4W"],
-    rating: 4.9,
-    totalJobs: 342,
-    completedToday: 5,
-    status: "Online",
-    verified: true,
-    joinedDate: "Jan 2024",
-    initials: "RS",
-    earnings: 48500,
-  },
-  {
-    id: "MEC-002",
-    name: "Suresh Kumar",
-    phone: "+91 87654 32109",
-    location: "Andheri East, Mumbai",
-    skills: ["2W", "EV"],
-    rating: 4.8,
-    totalJobs: 298,
-    completedToday: 3,
-    status: "Busy",
-    verified: true,
-    joinedDate: "Mar 2024",
-    initials: "SK",
-    earnings: 42000,
-  },
-  {
-    id: "MEC-003",
-    name: "Deepak Yadav",
-    phone: "+91 76543 21098",
-    location: "Koramangala, Bengaluru",
-    skills: ["2W", "4W", "EV"],
-    rating: 4.7,
-    totalJobs: 267,
-    completedToday: 4,
-    status: "Online",
-    verified: true,
-    joinedDate: "Feb 2024",
-    initials: "DY",
-    earnings: 39800,
-  },
-  {
-    id: "MEC-004",
-    name: "Amit Tiwari",
-    phone: "+91 65432 10987",
-    location: "Aundh, Pune",
-    skills: ["2W"],
-    rating: 4.6,
-    totalJobs: 234,
-    completedToday: 2,
-    status: "Offline",
-    verified: true,
-    joinedDate: "Apr 2024",
-    initials: "AT",
-    earnings: 35200,
-  },
-  {
-    id: "MEC-005",
-    name: "Karthik Rajan",
-    phone: "+91 54321 09876",
-    location: "T. Nagar, Chennai",
-    skills: ["2W", "4W"],
-    rating: 4.3,
-    totalJobs: 45,
-    completedToday: 0,
-    status: "Online",
-    verified: false,
-    joinedDate: "Feb 2025",
-    initials: "KR",
-    earnings: 12800,
-  },
-  {
-    id: "MEC-006",
-    name: "Manoj Verma",
-    phone: "+91 43210 98765",
-    location: "Salt Lake, Kolkata",
-    skills: ["2W", "EV"],
-    rating: 4.5,
-    totalJobs: 201,
-    completedToday: 3,
-    status: "Busy",
-    verified: true,
-    joinedDate: "May 2024",
-    initials: "MV",
-    earnings: 31500,
-  },
-];
+// --- Types ---
+
+interface MechanicUser {
+  name: string;
+  phone: string;
+  avatarUrl: string | null;
+}
+
+interface Mechanic {
+  id: string;
+  userId: string;
+  user: MechanicUser;
+  skills: string[];
+  rating: number;
+  totalJobs: number;
+  completedToday: number;
+  earnings: number;
+  status: "ONLINE" | "OFFLINE" | "BUSY";
+  verificationStatus: "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
+  latitude: number;
+  longitude: number;
+  createdAt: string;
+}
+
+// --- Helpers ---
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+}
+
+function mapStatus(status: Mechanic["status"]): string {
+  const statusMap: Record<Mechanic["status"], string> = {
+    ONLINE: "Online",
+    OFFLINE: "Offline",
+    BUSY: "Busy",
+  };
+  return statusMap[status] || "Offline";
+}
+
+function formatJoinedDate(createdAt: string): string {
+  return new Date(createdAt).toLocaleDateString("en-IN", {
+    month: "short",
+    year: "numeric",
+  });
+}
 
 // --- Star Rating ---
 
@@ -207,6 +168,122 @@ function SkillBadge({ skill }: { skill: string }) {
   );
 }
 
+// --- Loading Skeleton ---
+
+function MechanicsGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Card key={i} className="relative overflow-hidden">
+          <CardContent className="pt-0">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+              <Skeleton className="h-6 w-6 rounded" />
+            </div>
+            <div className="mt-4 space-y-2.5">
+              <Skeleton className="h-3 w-36" />
+              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <div className="mt-3 flex gap-1.5">
+              <Skeleton className="h-5 w-12 rounded-full" />
+              <Skeleton className="h-5 w-12 rounded-full" />
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t pt-3">
+              <div className="text-center space-y-1">
+                <Skeleton className="h-4 w-8 mx-auto" />
+                <Skeleton className="h-3 w-14" />
+              </div>
+              <div className="text-center space-y-1">
+                <Skeleton className="h-4 w-6 mx-auto" />
+                <Skeleton className="h-3 w-10" />
+              </div>
+              <div className="text-center space-y-1">
+                <Skeleton className="h-4 w-10 mx-auto" />
+                <Skeleton className="h-3 w-14" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function MechanicsTableSkeleton() {
+  return (
+    <Card>
+      <CardContent className="pt-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-muted-foreground">
+                <th className="pb-3 pr-4 text-left font-medium">Mechanic</th>
+                <th className="pb-3 pr-4 text-left font-medium">Phone</th>
+                <th className="pb-3 pr-4 text-left font-medium">Location</th>
+                <th className="pb-3 pr-4 text-left font-medium">Skills</th>
+                <th className="pb-3 pr-4 text-left font-medium">Rating</th>
+                <th className="pb-3 pr-4 text-left font-medium">Jobs</th>
+                <th className="pb-3 pr-4 text-left font-medium">Status</th>
+                <th className="pb-3 text-left font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} className="border-b last:border-0">
+                  <td className="py-3 pr-4">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <div className="space-y-1">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3 pr-4"><Skeleton className="h-3 w-28" /></td>
+                  <td className="py-3 pr-4"><Skeleton className="h-3 w-32" /></td>
+                  <td className="py-3 pr-4">
+                    <div className="flex gap-1">
+                      <Skeleton className="h-5 w-10 rounded-full" />
+                      <Skeleton className="h-5 w-10 rounded-full" />
+                    </div>
+                  </td>
+                  <td className="py-3 pr-4"><Skeleton className="h-3 w-20" /></td>
+                  <td className="py-3 pr-4"><Skeleton className="h-3 w-8" /></td>
+                  <td className="py-3 pr-4"><Skeleton className="h-3 w-14" /></td>
+                  <td className="py-3"><Skeleton className="h-6 w-6 rounded" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Error State ---
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+      <AlertCircle className="h-10 w-10 mb-3 text-destructive opacity-60" />
+      <p className="text-sm font-medium">Failed to load mechanics</p>
+      <p className="text-xs mt-1">{message}</p>
+      <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
+        <RefreshCw className="h-3.5 w-3.5 mr-2" />
+        Retry
+      </Button>
+    </div>
+  );
+}
+
 // --- Page Component ---
 
 export default function MechanicsPage() {
@@ -214,22 +291,60 @@ export default function MechanicsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const filtered = mechanics.filter((m) => {
+  const { data: mechanicsData, isLoading, isError, error, refetch } = useAllMechanics();
+  const verifyMechanic = useVerifyMechanic();
+
+  const allMechanics: Mechanic[] = mechanicsData ?? [];
+
+  const filtered = allMechanics.filter((m) => {
+    const name = m.user.name;
+    const phone = m.user.phone;
+    const displayStatus = mapStatus(m.status);
+
     const matchesSearch =
       searchQuery === "" ||
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.phone.includes(searchQuery);
+      name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      phone.includes(searchQuery);
 
     const matchesStatus =
       statusFilter === "all" ||
-      (statusFilter === "verified" && m.verified) ||
-      (statusFilter === "pending" && !m.verified) ||
-      (statusFilter === "online" && m.status === "Online") ||
-      (statusFilter === "offline" && m.status === "Offline");
+      (statusFilter === "verified" && m.verificationStatus === "APPROVED") ||
+      (statusFilter === "pending" && m.verificationStatus === "PENDING") ||
+      (statusFilter === "online" && m.status === "ONLINE") ||
+      (statusFilter === "offline" && m.status === "OFFLINE");
 
     return matchesSearch && matchesStatus;
   });
+
+  const handleApprove = (mech: Mechanic) => {
+    verifyMechanic.mutate(
+      { id: mech.id, action: "APPROVED" },
+      {
+        onSuccess: () => toast.success("Mechanic approved successfully"),
+        onError: (err) => toast.error(err.message || "Failed to update mechanic"),
+      }
+    );
+  };
+
+  const handleReject = (mech: Mechanic) => {
+    verifyMechanic.mutate(
+      { id: mech.id, action: "REJECTED" },
+      {
+        onSuccess: () => toast.success("Mechanic rejected successfully"),
+        onError: (err) => toast.error(err.message || "Failed to update mechanic"),
+      }
+    );
+  };
+
+  const handleSuspend = (mech: Mechanic) => {
+    verifyMechanic.mutate(
+      { id: mech.id, action: "SUSPENDED" },
+      {
+        onSuccess: () => toast.success("Mechanic suspended successfully"),
+        onError: (err) => toast.error(err.message || "Failed to update mechanic"),
+      }
+    );
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -309,210 +424,89 @@ export default function MechanicsPage() {
         </div>
       </motion.div>
 
-      {/* Grid View */}
-      <AnimatePresence mode="wait">
-        {viewMode === "grid" ? (
-          <motion.div
-            key="grid"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
-          >
-            {filtered.map((mech, index) => (
+      {/* Loading State */}
+      {isLoading && (
+        <motion.div variants={itemVariants}>
+          {viewMode === "grid" ? <MechanicsGridSkeleton /> : <MechanicsTableSkeleton />}
+        </motion.div>
+      )}
+
+      {/* Error State */}
+      {isError && (
+        <motion.div variants={itemVariants}>
+          <ErrorState
+            message={(error as Error)?.message || "An unexpected error occurred"}
+            onRetry={() => refetch()}
+          />
+        </motion.div>
+      )}
+
+      {/* Content */}
+      {!isLoading && !isError && (
+        <>
+          {/* Grid View */}
+          <AnimatePresence mode="wait">
+            {viewMode === "grid" ? (
               <motion.div
-                key={mech.id}
-                variants={itemVariants}
-                whileHover={{ y: -2 }}
+                key="grid"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
               >
-                <Card className="relative overflow-hidden hover:shadow-md transition-shadow">
-                  <CardContent className="pt-0">
-                    {/* Top row: avatar + name + actions */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <Avatar size="lg">
-                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                              {mech.initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          {/* Online status dot */}
-                          <span
-                            className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card ${
-                              mech.status === "Online"
-                                ? "bg-green-500"
-                                : mech.status === "Busy"
-                                ? "bg-orange-500"
-                                : "bg-gray-400"
-                            }`}
-                          />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h3 className="font-semibold text-sm">{mech.name}</h3>
-                            {mech.verified && (
-                              <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
-                            )}
-                          </div>
-                          <OnlineStatus status={mech.status} />
-                        </div>
-                      </div>
+                {filtered.map((mech) => {
+                  const name = mech.user.name;
+                  const initials = getInitials(name);
+                  const phone = mech.user.phone;
+                  const displayStatus = mapStatus(mech.status);
+                  const verified = mech.verificationStatus === "APPROVED";
+                  const isPending = mech.verificationStatus === "PENDING";
+                  const locationText =
+                    mech.latitude && mech.longitude
+                      ? `${mech.latitude.toFixed(4)}, ${mech.longitude.toFixed(4)}`
+                      : "Location available";
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-xs">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Eye className="h-4 w-4" />
-                            View Profile
-                          </DropdownMenuItem>
-                          {!mech.verified && (
-                            <>
-                              <DropdownMenuItem>
-                                <CheckCircle2 className="h-4 w-4" />
-                                Approve
-                              </DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive">
-                                <XCircle className="h-4 w-4" />
-                                Reject
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem variant="destructive">
-                            <Ban className="h-4 w-4" />
-                            Suspend
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-
-                    {/* Info */}
-                    <div className="mt-4 space-y-2.5">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Phone className="h-3.5 w-3.5" />
-                        {mech.phone}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {mech.location}
-                      </div>
-                      <StarRating rating={mech.rating} />
-                    </div>
-
-                    {/* Skills */}
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {mech.skills.map((skill) => (
-                        <SkillBadge key={skill} skill={skill} />
-                      ))}
-                      {!mech.verified && (
-                        <Badge variant="outline" className="gap-1 text-xs py-0 border-yellow-500/50 text-yellow-600 dark:text-yellow-400">
-                          <Clock className="h-2.5 w-2.5" />
-                          Pending
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Stats footer */}
-                    <div className="mt-4 flex items-center justify-between border-t pt-3">
-                      <div className="text-center">
-                        <p className="text-sm font-bold">{mech.totalJobs}</p>
-                        <p className="text-xs text-muted-foreground">Total Jobs</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-bold">{mech.completedToday}</p>
-                        <p className="text-xs text-muted-foreground">Today</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-bold">
-                          {"\u20B9"}
-                          {(mech.earnings / 1000).toFixed(1)}k
-                        </p>
-                        <p className="text-xs text-muted-foreground">Earnings</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-        ) : (
-          /* Table View */
-          <motion.div
-            key="table"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <Card>
-              <CardContent className="pt-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-muted-foreground">
-                        <th className="pb-3 pr-4 text-left font-medium">Mechanic</th>
-                        <th className="pb-3 pr-4 text-left font-medium">Phone</th>
-                        <th className="pb-3 pr-4 text-left font-medium">Location</th>
-                        <th className="pb-3 pr-4 text-left font-medium">Skills</th>
-                        <th className="pb-3 pr-4 text-left font-medium">Rating</th>
-                        <th className="pb-3 pr-4 text-left font-medium">Jobs</th>
-                        <th className="pb-3 pr-4 text-left font-medium">Status</th>
-                        <th className="pb-3 text-left font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((mech) => (
-                        <tr
-                          key={mech.id}
-                          className="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                        >
-                          <td className="py-3 pr-4">
-                            <div className="flex items-center gap-2">
-                              <Avatar size="sm">
-                                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                                  {mech.initials}
-                                </AvatarFallback>
-                              </Avatar>
+                  return (
+                    <motion.div
+                      key={mech.id}
+                      variants={itemVariants}
+                      whileHover={{ y: -2 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card className="relative overflow-hidden hover:shadow-md transition-shadow">
+                        <CardContent className="pt-0">
+                          {/* Top row: avatar + name + actions */}
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="relative">
+                                <Avatar size="lg">
+                                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                                    {initials}
+                                  </AvatarFallback>
+                                </Avatar>
+                                {/* Online status dot */}
+                                <span
+                                  className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card ${
+                                    mech.status === "ONLINE"
+                                      ? "bg-green-500"
+                                      : mech.status === "BUSY"
+                                      ? "bg-orange-500"
+                                      : "bg-gray-400"
+                                  }`}
+                                />
+                              </div>
                               <div>
-                                <div className="flex items-center gap-1">
-                                  <span className="font-medium">{mech.name}</span>
-                                  {mech.verified && (
-                                    <ShieldCheck className="h-3 w-3 text-blue-500" />
+                                <div className="flex items-center gap-1.5">
+                                  <h3 className="font-semibold text-sm">{name}</h3>
+                                  {verified && (
+                                    <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
                                   )}
                                 </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {mech.id}
-                                </span>
+                                <OnlineStatus status={displayStatus} />
                               </div>
                             </div>
-                          </td>
-                          <td className="py-3 pr-4 text-xs text-muted-foreground">
-                            {mech.phone}
-                          </td>
-                          <td className="py-3 pr-4 text-xs text-muted-foreground">
-                            {mech.location}
-                          </td>
-                          <td className="py-3 pr-4">
-                            <div className="flex gap-1">
-                              {mech.skills.map((s) => (
-                                <SkillBadge key={s} skill={s} />
-                              ))}
-                            </div>
-                          </td>
-                          <td className="py-3 pr-4">
-                            <StarRating rating={mech.rating} />
-                          </td>
-                          <td className="py-3 pr-4 font-medium">{mech.totalJobs}</td>
-                          <td className="py-3 pr-4">
-                            <OnlineStatus status={mech.status} />
-                          </td>
-                          <td className="py-3">
+
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon-xs">
@@ -524,47 +518,227 @@ export default function MechanicsPage() {
                                   <Eye className="h-4 w-4" />
                                   View Profile
                                 </DropdownMenuItem>
-                                {!mech.verified && (
+                                {!verified && (
                                   <>
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleApprove(mech)}>
                                       <CheckCircle2 className="h-4 w-4" />
                                       Approve
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem variant="destructive">
-                                      <ShieldX className="h-4 w-4" />
+                                    <DropdownMenuItem
+                                      variant="destructive"
+                                      onClick={() => handleReject(mech)}
+                                    >
+                                      <XCircle className="h-4 w-4" />
                                       Reject
                                     </DropdownMenuItem>
                                   </>
                                 )}
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem variant="destructive">
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => handleSuspend(mech)}
+                                >
                                   <Ban className="h-4 w-4" />
                                   Suspend
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                          </div>
 
-      {filtered.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center justify-center py-16 text-muted-foreground"
-        >
-          <Search className="h-10 w-10 mb-3 opacity-40" />
-          <p className="text-sm font-medium">No mechanics found</p>
-          <p className="text-xs">Try adjusting your search or filter criteria</p>
-        </motion.div>
+                          {/* Info */}
+                          <div className="mt-4 space-y-2.5">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Phone className="h-3.5 w-3.5" />
+                              {phone}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <MapPin className="h-3.5 w-3.5" />
+                              {locationText}
+                            </div>
+                            <StarRating rating={mech.rating} />
+                          </div>
+
+                          {/* Skills */}
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {mech.skills.map((skill) => (
+                              <SkillBadge key={skill} skill={skill} />
+                            ))}
+                            {isPending && (
+                              <Badge variant="outline" className="gap-1 text-xs py-0 border-yellow-500/50 text-yellow-600 dark:text-yellow-400">
+                                <Clock className="h-2.5 w-2.5" />
+                                Pending
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Stats footer */}
+                          <div className="mt-4 flex items-center justify-between border-t pt-3">
+                            <div className="text-center">
+                              <p className="text-sm font-bold">{mech.totalJobs}</p>
+                              <p className="text-xs text-muted-foreground">Total Jobs</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-bold">{mech.completedToday}</p>
+                              <p className="text-xs text-muted-foreground">Today</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-bold">
+                                {"\u20B9"}
+                                {(mech.earnings / 1000).toFixed(1)}k
+                              </p>
+                              <p className="text-xs text-muted-foreground">Earnings</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            ) : (
+              /* Table View */
+              <motion.div
+                key="table"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Card>
+                  <CardContent className="pt-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-muted-foreground">
+                            <th className="pb-3 pr-4 text-left font-medium">Mechanic</th>
+                            <th className="pb-3 pr-4 text-left font-medium">Phone</th>
+                            <th className="pb-3 pr-4 text-left font-medium">Location</th>
+                            <th className="pb-3 pr-4 text-left font-medium">Skills</th>
+                            <th className="pb-3 pr-4 text-left font-medium">Rating</th>
+                            <th className="pb-3 pr-4 text-left font-medium">Jobs</th>
+                            <th className="pb-3 pr-4 text-left font-medium">Status</th>
+                            <th className="pb-3 text-left font-medium">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map((mech) => {
+                            const name = mech.user.name;
+                            const initials = getInitials(name);
+                            const phone = mech.user.phone;
+                            const displayStatus = mapStatus(mech.status);
+                            const verified = mech.verificationStatus === "APPROVED";
+                            const locationText =
+                              mech.latitude && mech.longitude
+                                ? `${mech.latitude.toFixed(4)}, ${mech.longitude.toFixed(4)}`
+                                : "Location available";
+
+                            return (
+                              <tr
+                                key={mech.id}
+                                className="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                              >
+                                <td className="py-3 pr-4">
+                                  <div className="flex items-center gap-2">
+                                    <Avatar size="sm">
+                                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                                        {initials}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-medium">{name}</span>
+                                        {verified && (
+                                          <ShieldCheck className="h-3 w-3 text-blue-500" />
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">
+                                        {mech.id.slice(0, 12)}...
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 pr-4 text-xs text-muted-foreground">
+                                  {phone}
+                                </td>
+                                <td className="py-3 pr-4 text-xs text-muted-foreground">
+                                  {locationText}
+                                </td>
+                                <td className="py-3 pr-4">
+                                  <div className="flex gap-1">
+                                    {mech.skills.map((s) => (
+                                      <SkillBadge key={s} skill={s} />
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="py-3 pr-4">
+                                  <StarRating rating={mech.rating} />
+                                </td>
+                                <td className="py-3 pr-4 font-medium">{mech.totalJobs}</td>
+                                <td className="py-3 pr-4">
+                                  <OnlineStatus status={displayStatus} />
+                                </td>
+                                <td className="py-3">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon-xs">
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem>
+                                        <Eye className="h-4 w-4" />
+                                        View Profile
+                                      </DropdownMenuItem>
+                                      {!verified && (
+                                        <>
+                                          <DropdownMenuItem onClick={() => handleApprove(mech)}>
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            Approve
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            variant="destructive"
+                                            onClick={() => handleReject(mech)}
+                                          >
+                                            <ShieldX className="h-4 w-4" />
+                                            Reject
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={() => handleSuspend(mech)}
+                                      >
+                                        <Ban className="h-4 w-4" />
+                                        Suspend
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {filtered.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-16 text-muted-foreground"
+            >
+              <Search className="h-10 w-10 mb-3 opacity-40" />
+              <p className="text-sm font-medium">No mechanics found</p>
+              <p className="text-xs">Try adjusting your search or filter criteria</p>
+            </motion.div>
+          )}
+        </>
       )}
     </motion.div>
   );

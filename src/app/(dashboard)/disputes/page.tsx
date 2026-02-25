@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -14,11 +14,11 @@ import {
   MessageSquareWarning,
   TrendingUp,
   ArrowRight,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -26,105 +26,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDisputes, useResolveDispute } from "@/lib/hooks/use-disputes";
+import { toast } from "sonner";
 
 // --- Types ---
 
-type DisputeStatus = "Open" | "Under Review" | "Resolved" | "Closed";
-type Priority = "High" | "Medium" | "Low";
-type UserRole = "Rider" | "Mechanic" | "Workshop";
+type DisplayStatus = "Open" | "Under Review" | "Resolved" | "Closed";
+type DisplayPriority = "High" | "Medium" | "Low";
+type DisplayRole = "Rider" | "Mechanic" | "Workshop";
 
-interface Dispute {
-  id: string;
-  raisedBy: string;
-  role: UserRole;
-  relatedTo: string;
-  relatedType: "Breakdown" | "Order";
-  reason: string;
-  description: string;
-  status: DisputeStatus;
-  priority: Priority;
-  createdDate: string;
-  lastUpdated: string;
+// --- Mappers ---
+
+const statusMap: Record<string, DisplayStatus> = {
+  OPEN: "Open",
+  UNDER_REVIEW: "Under Review",
+  RESOLVED: "Resolved",
+  CLOSED: "Closed",
+};
+
+const priorityMap: Record<string, DisplayPriority> = {
+  HIGH: "High",
+  MEDIUM: "Medium",
+  LOW: "Low",
+};
+
+const roleMap: Record<string, DisplayRole> = {
+  RIDER: "Rider",
+  MECHANIC: "Mechanic",
+  WORKSHOP: "Workshop",
+};
+
+const relatedTypeMap: Record<string, string> = {
+  ORDER: "Order",
+  BREAKDOWN: "Breakdown",
+};
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
-
-// --- Mock Data ---
-
-const disputes: Dispute[] = [
-  {
-    id: "DSP-401",
-    raisedBy: "Arun Mehta",
-    role: "Rider",
-    relatedTo: "ORD-10234",
-    relatedType: "Order",
-    reason: "Overcharging by mechanic",
-    description:
-      "The mechanic charged ₹1,500 for brake pad replacement but the market rate is ₹800. The quoted price on the platform was ₹900 including labour. Requesting review and partial refund.",
-    status: "Open",
-    priority: "High",
-    createdDate: "2026-02-23",
-    lastUpdated: "2026-02-24",
-  },
-  {
-    id: "DSP-402",
-    raisedBy: "Rajesh Two Wheeler Hub",
-    role: "Workshop",
-    relatedTo: "ORD-10236",
-    relatedType: "Order",
-    reason: "Defective part received from supplier",
-    description:
-      "Customer returned a Bajaj Pulsar clutch plate claiming it was defective. After inspection, the part had a manufacturing defect. Requesting supplier accountability and reimbursement for return shipping.",
-    status: "Under Review",
-    priority: "Medium",
-    createdDate: "2026-02-22",
-    lastUpdated: "2026-02-23",
-  },
-  {
-    id: "DSP-403",
-    raisedBy: "Priya Sharma",
-    role: "Rider",
-    relatedTo: "BRK-0578",
-    relatedType: "Breakdown",
-    reason: "Mechanic no-show for scheduled service",
-    description:
-      "Booked a roadside assistance for flat tyre on NH-48 near Gurugram. Mechanic Ravi Kumar confirmed but never showed up. Waited 2 hours in the heat. Had to call a local garage eventually. Requesting full refund and mechanic accountability.",
-    status: "Resolved",
-    priority: "High",
-    createdDate: "2026-02-20",
-    lastUpdated: "2026-02-22",
-  },
-  {
-    id: "DSP-404",
-    raisedBy: "Vikram Joshi",
-    role: "Rider",
-    relatedTo: "ORD-10236",
-    relatedType: "Order",
-    reason: "Wrong part delivered",
-    description:
-      "Ordered a clutch plate for Bajaj Pulsar 150 but received one for Pulsar 220. The part number on the packaging does not match the listing. Need correct part or full refund.",
-    status: "Open",
-    priority: "Medium",
-    createdDate: "2026-02-24",
-    lastUpdated: "2026-02-24",
-  },
-  {
-    id: "DSP-405",
-    raisedBy: "Ravi Kumar",
-    role: "Mechanic",
-    relatedTo: "BRK-0612",
-    relatedType: "Breakdown",
-    reason: "Delayed payment for completed service",
-    description:
-      "Completed an emergency engine repair for a Maruti Alto on 18th Feb. Customer confirmed completion on the app. Payment is still held in escrow for over 5 days. Need immediate release of ₹3,200 service fee.",
-    status: "Closed",
-    priority: "Low",
-    createdDate: "2026-02-19",
-    lastUpdated: "2026-02-21",
-  },
-];
 
 // --- Helpers ---
 
-const statusStyles: Record<DisputeStatus, string> = {
+const statusStyles: Record<DisplayStatus, string> = {
   Open: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   "Under Review":
     "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
@@ -133,21 +82,21 @@ const statusStyles: Record<DisputeStatus, string> = {
   Closed: "bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300",
 };
 
-const statusIcons: Record<DisputeStatus, React.ReactNode> = {
+const statusIcons: Record<DisplayStatus, React.ReactNode> = {
   Open: <AlertTriangle className="size-3.5" />,
   "Under Review": <Clock className="size-3.5" />,
   Resolved: <CheckCircle2 className="size-3.5" />,
   Closed: <XCircle className="size-3.5" />,
 };
 
-const priorityStyles: Record<Priority, string> = {
+const priorityStyles: Record<DisplayPriority, string> = {
   High: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   Medium:
     "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
   Low: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
 };
 
-const roleStyles: Record<UserRole, string> = {
+const roleStyles: Record<DisplayRole, string> = {
   Rider: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
   Mechanic:
     "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
@@ -155,24 +104,119 @@ const roleStyles: Record<UserRole, string> = {
     "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
 };
 
+// --- Loading Skeleton ---
+
+function DisputesSkeleton() {
+  return (
+    <div className="flex flex-col gap-6 p-4 md:p-6">
+      {/* Header skeleton */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-80" />
+        </div>
+        <Skeleton className="h-10 w-[180px]" />
+      </div>
+
+      {/* Stats skeleton */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="gap-0 py-0">
+            <CardContent className="flex items-center gap-3 p-4">
+              <Skeleton className="size-10 rounded-lg" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-6 w-16" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Dispute cards skeleton */}
+      <div className="flex flex-col gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="gap-0 overflow-hidden py-0">
+            <CardContent className="p-0">
+              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:gap-6">
+                <Skeleton className="hidden size-11 rounded-xl sm:block" />
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-5 w-16" />
+                    <Skeleton className="h-5 w-14" />
+                  </div>
+                  <Skeleton className="h-4 w-64" />
+                  <Skeleton className="h-8 w-full" />
+                  <div className="flex gap-4">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </div>
+                <Skeleton className="h-9 w-24" />
+              </div>
+              <div className="border-t bg-muted/30 px-4 py-2">
+                <Skeleton className="h-3 w-40" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // --- Component ---
 
 export default function DisputesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const filtered =
-    statusFilter === "all"
-      ? disputes
-      : disputes.filter((d) => d.status === statusFilter);
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useDisputes({
+    status: statusFilter === "all" ? undefined : statusFilter,
+  });
 
-  // Stats
-  const openCount = disputes.filter((d) => d.status === "Open").length;
-  const resolvedThisWeek = disputes.filter(
-    (d) =>
-      d.status === "Resolved" &&
-      new Date(d.lastUpdated) >= new Date("2026-02-17")
-  ).length;
-  const avgResolutionDays = "2.5";
+  const resolveDispute = useResolveDispute();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const disputes: any[] = data?.disputes ?? [];
+
+  // Stats - computed from ALL disputes (we fetch all for stats when filter is active)
+  const { data: allData } = useDisputes({});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allDisputes: any[] = allData?.disputes ?? [];
+
+  const openCount = useMemo(
+    () => allDisputes.filter((d) => d.status === "OPEN").length,
+    [allDisputes]
+  );
+
+  const resolvedThisWeek = useMemo(() => {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    return allDisputes.filter(
+      (d) =>
+        d.status === "RESOLVED" &&
+        new Date(d.updatedAt) >= oneWeekAgo
+    ).length;
+  }, [allDisputes]);
+
+  const avgResolutionDays = useMemo(() => {
+    const resolved = allDisputes.filter((d) => d.status === "RESOLVED" || d.status === "CLOSED");
+    if (resolved.length === 0) return "0";
+    const totalDays = resolved.reduce((sum, d) => {
+      const created = new Date(d.createdAt).getTime();
+      const updated = new Date(d.updatedAt).getTime();
+      return sum + (updated - created) / (1000 * 60 * 60 * 24);
+    }, 0);
+    return (totalDays / resolved.length).toFixed(1);
+  }, [allDisputes]);
 
   const stats = [
     {
@@ -199,6 +243,49 @@ export default function DisputesPage() {
     },
   ];
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function handleReview(dispute: any) {
+    resolveDispute.mutate(
+      { id: dispute.id, resolution: "", status: "UNDER_REVIEW" },
+      {
+        onSuccess: () => toast.success("Dispute marked as under review"),
+        onError: (err) => toast.error(err.message),
+      }
+    );
+  }
+
+  if (isLoading) {
+    return <DisputesSkeleton />;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col gap-6 p-4 md:p-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dispute Center</h1>
+          <p className="text-sm text-muted-foreground">
+            Review and resolve disputes between riders, mechanics, and workshops
+          </p>
+        </div>
+        <Card className="py-16">
+          <CardContent className="flex flex-col items-center justify-center gap-4 text-center">
+            <AlertTriangle className="size-12 text-destructive/60" />
+            <div>
+              <p className="text-lg font-medium">Failed to load disputes</p>
+              <p className="text-sm text-muted-foreground">
+                {error instanceof Error ? error.message : "An unexpected error occurred"}
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => refetch()}>
+              <RefreshCw className="mr-2 size-4" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
       {/* Header */}
@@ -215,10 +302,10 @@ export default function DisputesPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="Open">Open</SelectItem>
-            <SelectItem value="Under Review">Under Review</SelectItem>
-            <SelectItem value="Resolved">Resolved</SelectItem>
-            <SelectItem value="Closed">Closed</SelectItem>
+            <SelectItem value="OPEN">Open</SelectItem>
+            <SelectItem value="UNDER_REVIEW">Under Review</SelectItem>
+            <SelectItem value="RESOLVED">Resolved</SelectItem>
+            <SelectItem value="CLOSED">Closed</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -243,7 +330,7 @@ export default function DisputesPage() {
       </div>
 
       {/* Dispute Cards */}
-      {filtered.length === 0 ? (
+      {disputes.length === 0 ? (
         <Card className="py-16">
           <CardContent className="flex flex-col items-center justify-center gap-3 text-center">
             <Shield className="size-12 text-muted-foreground/40" />
@@ -256,145 +343,161 @@ export default function DisputesPage() {
       ) : (
         <div className="flex flex-col gap-4">
           <AnimatePresence mode="popLayout">
-            {filtered.map((dispute, index) => (
-              <motion.div
-                key={dispute.id}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.25, delay: index * 0.05 }}
-              >
-                <Card className="gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
-                  <CardContent className="p-0">
-                    <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:gap-6">
-                      {/* Left: Icon */}
-                      <div className="hidden sm:block">
-                        <div
-                          className={`flex size-11 items-center justify-center rounded-xl ${
-                            dispute.status === "Open"
-                              ? "bg-red-100 dark:bg-red-900/30"
-                              : dispute.status === "Under Review"
-                              ? "bg-orange-100 dark:bg-orange-900/30"
-                              : dispute.status === "Resolved"
-                              ? "bg-green-100 dark:bg-green-900/30"
-                              : "bg-gray-100 dark:bg-gray-900/30"
-                          }`}
-                        >
-                          <MessageSquareWarning
-                            className={`size-5 ${
-                              dispute.status === "Open"
-                                ? "text-red-600 dark:text-red-400"
-                                : dispute.status === "Under Review"
-                                ? "text-orange-600 dark:text-orange-400"
-                                : dispute.status === "Resolved"
-                                ? "text-green-600 dark:text-green-400"
-                                : "text-gray-600 dark:text-gray-400"
-                            }`}
-                          />
-                        </div>
-                      </div>
+            {disputes.map((dispute, index) => {
+              const displayStatus = statusMap[dispute.status] ?? dispute.status;
+              const displayPriority = priorityMap[dispute.priority] ?? dispute.priority;
+              const displayRole = roleMap[dispute.raisedBy?.role] ?? dispute.raisedBy?.role;
+              const displayRelatedType = relatedTypeMap[dispute.relatedType] ?? dispute.relatedType;
 
-                      {/* Center: Content */}
-                      <div className="flex-1 space-y-3">
-                        {/* Top row: ID + Badges */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-sm font-semibold">
-                            {dispute.id}
-                          </span>
-                          <Badge
-                            className={`border-0 text-[10px] gap-1 ${
-                              statusStyles[dispute.status]
+              return (
+                <motion.div
+                  key={dispute.id}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  transition={{ duration: 0.25, delay: index * 0.05 }}
+                >
+                  <Card className="gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
+                    <CardContent className="p-0">
+                      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:gap-6">
+                        {/* Left: Icon */}
+                        <div className="hidden sm:block">
+                          <div
+                            className={`flex size-11 items-center justify-center rounded-xl ${
+                              displayStatus === "Open"
+                                ? "bg-red-100 dark:bg-red-900/30"
+                                : displayStatus === "Under Review"
+                                ? "bg-orange-100 dark:bg-orange-900/30"
+                                : displayStatus === "Resolved"
+                                ? "bg-green-100 dark:bg-green-900/30"
+                                : "bg-gray-100 dark:bg-gray-900/30"
                             }`}
                           >
-                            {statusIcons[dispute.status]}
-                            {dispute.status}
-                          </Badge>
-                          <Badge
-                            className={`border-0 text-[10px] ${
-                              priorityStyles[dispute.priority]
-                            }`}
-                          >
-                            {dispute.priority}
-                          </Badge>
+                            <MessageSquareWarning
+                              className={`size-5 ${
+                                displayStatus === "Open"
+                                  ? "text-red-600 dark:text-red-400"
+                                  : displayStatus === "Under Review"
+                                  ? "text-orange-600 dark:text-orange-400"
+                                  : displayStatus === "Resolved"
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-gray-600 dark:text-gray-400"
+                              }`}
+                            />
+                          </div>
                         </div>
 
-                        {/* Reason */}
-                        <p className="text-sm font-medium">{dispute.reason}</p>
-
-                        {/* Description */}
-                        <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">
-                          {dispute.description}
-                        </p>
-
-                        {/* Meta row */}
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1.5">
-                            <User className="size-3" />
-                            <span>{dispute.raisedBy}</span>
+                        {/* Center: Content */}
+                        <div className="flex-1 space-y-3">
+                          {/* Top row: ID + Badges */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-sm font-semibold">
+                              {dispute.displayId}
+                            </span>
                             <Badge
-                              className={`border-0 text-[9px] px-1.5 py-0 ${
-                                roleStyles[dispute.role]
+                              className={`border-0 text-[10px] gap-1 ${
+                                statusStyles[displayStatus as DisplayStatus] ?? ""
                               }`}
                             >
-                              {dispute.role}
+                              {statusIcons[displayStatus as DisplayStatus]}
+                              {displayStatus}
+                            </Badge>
+                            <Badge
+                              className={`border-0 text-[10px] ${
+                                priorityStyles[displayPriority as DisplayPriority] ?? ""
+                              }`}
+                            >
+                              {displayPriority}
                             </Badge>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <Link2 className="size-3" />
-                            <span>
-                              {dispute.relatedType} #{dispute.relatedTo}
-                            </span>
+
+                          {/* Reason */}
+                          <p className="text-sm font-medium">{dispute.reason}</p>
+
+                          {/* Description */}
+                          <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">
+                            {dispute.description}
+                          </p>
+
+                          {/* Meta row */}
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1.5">
+                              <User className="size-3" />
+                              <span>{dispute.raisedBy?.name}</span>
+                              <Badge
+                                className={`border-0 text-[9px] px-1.5 py-0 ${
+                                  roleStyles[displayRole as DisplayRole] ?? ""
+                                }`}
+                              >
+                                {displayRole}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Link2 className="size-3" />
+                              <span>
+                                {displayRelatedType} #{dispute.relatedId}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="size-3" />
+                              <span>{formatDate(dispute.createdAt)}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="size-3" />
-                            <span>{dispute.createdDate}</span>
-                          </div>
+                        </div>
+
+                        {/* Right: Action */}
+                        <div className="flex shrink-0 items-start">
+                          {dispute.status === "OPEN" ? (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              disabled={resolveDispute.isPending}
+                              onClick={() => handleReview(dispute)}
+                            >
+                              {resolveDispute.isPending ? "Updating..." : "Review"}
+                              <ArrowRight className="size-3.5" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant={dispute.status === "UNDER_REVIEW" ? "default" : "outline"}
+                              size="sm"
+                            >
+                              {dispute.status === "UNDER_REVIEW"
+                                ? "Review"
+                                : "View Details"}
+                              <ArrowRight className="size-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Right: Action */}
-                      <div className="flex shrink-0 items-start">
-                        <Button
-                          variant={
-                            dispute.status === "Open" ? "default" : "outline"
-                          }
-                          size="sm"
-                        >
-                          {dispute.status === "Open" ||
-                          dispute.status === "Under Review"
-                            ? "Review"
-                            : "View Details"}
-                          <ArrowRight className="size-3.5" />
-                        </Button>
+                      {/* Bottom bar */}
+                      <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-2 text-[11px] text-muted-foreground">
+                        <span>Last updated: {formatDate(dispute.updatedAt)}</span>
+                        {dispute.status === "OPEN" && (
+                          <span className="flex items-center gap-1 font-medium text-red-600 dark:text-red-400">
+                            <AlertTriangle className="size-3" />
+                            Requires attention
+                          </span>
+                        )}
+                        {dispute.status === "UNDER_REVIEW" && (
+                          <span className="flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400">
+                            <Clock className="size-3" />
+                            Under investigation
+                          </span>
+                        )}
+                        {dispute.status === "RESOLVED" && (
+                          <span className="flex items-center gap-1 font-medium text-green-600 dark:text-green-400">
+                            <CheckCircle2 className="size-3" />
+                            Resolution applied
+                          </span>
+                        )}
                       </div>
-                    </div>
-
-                    {/* Bottom bar */}
-                    <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-2 text-[11px] text-muted-foreground">
-                      <span>Last updated: {dispute.lastUpdated}</span>
-                      {dispute.status === "Open" && (
-                        <span className="flex items-center gap-1 font-medium text-red-600 dark:text-red-400">
-                          <AlertTriangle className="size-3" />
-                          Requires attention
-                        </span>
-                      )}
-                      {dispute.status === "Under Review" && (
-                        <span className="flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400">
-                          <Clock className="size-3" />
-                          Under investigation
-                        </span>
-                      )}
-                      {dispute.status === "Resolved" && (
-                        <span className="flex items-center gap-1 font-medium text-green-600 dark:text-green-400">
-                          <CheckCircle2 className="size-3" />
-                          Resolution applied
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
       )}

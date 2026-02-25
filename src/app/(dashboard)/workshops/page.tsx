@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -19,7 +19,10 @@ import {
   Clock,
   ExternalLink,
   IndianRupee,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,91 +42,53 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useWorkshops, useVerifyWorkshop } from "@/lib/hooks/use-workshops";
 
-// --- Mock Data ---
+// --- Types ---
 
-const workshops = [
-  {
-    id: "WS-001",
-    name: "Sharma Auto Spares & Service",
-    owner: "Rajendra Sharma",
-    phone: "+91 98112 34567",
-    location: "Karol Bagh, New Delhi",
-    gstNumber: "07AAACS1234H1Z5",
-    partsListed: 245,
-    rating: 4.8,
-    reviewCount: 156,
-    status: "Active",
-    verified: true,
-    joinedDate: "Dec 2023",
-    monthlyRevenue: 285000,
-    specialties: ["Honda", "TVS", "Hero"],
-  },
-  {
-    id: "WS-002",
-    name: "Patel Two-Wheeler Parts",
-    owner: "Kiran Patel",
-    phone: "+91 87655 43210",
-    location: "CG Road, Ahmedabad",
-    gstNumber: "24AABCP5678M1Z3",
-    partsListed: 189,
-    rating: 4.6,
-    reviewCount: 98,
-    status: "Active",
-    verified: true,
-    joinedDate: "Feb 2024",
-    monthlyRevenue: 198000,
-    specialties: ["Bajaj", "Royal Enfield"],
-  },
-  {
-    id: "WS-003",
-    name: "Bengaluru EV Hub",
-    owner: "Anil Hegde",
-    phone: "+91 76543 21098",
-    location: "Indiranagar, Bengaluru",
-    gstNumber: "29AADCH9012K1Z8",
-    partsListed: 132,
-    rating: 4.9,
-    reviewCount: 72,
-    status: "Active",
-    verified: true,
-    joinedDate: "Jun 2024",
-    monthlyRevenue: 340000,
-    specialties: ["Ola", "Ather", "TVS iQube"],
-  },
-  {
-    id: "WS-004",
-    name: "Krishna Motor Parts",
-    owner: "Venkat Krishna",
-    phone: "+91 65432 10987",
-    location: "Ameerpet, Hyderabad",
-    gstNumber: "36AABCK3456P1Z1",
-    partsListed: 78,
-    rating: 4.2,
-    reviewCount: 45,
-    status: "Pending",
-    verified: false,
-    joinedDate: "Jan 2025",
-    monthlyRevenue: 0,
-    specialties: ["Yamaha", "Suzuki"],
-  },
-  {
-    id: "WS-005",
-    name: "Mukherjee Bike World",
-    owner: "Soumya Mukherjee",
-    phone: "+91 54321 09876",
-    location: "Park Street, Kolkata",
-    gstNumber: "19AABCM7890L1Z6",
-    partsListed: 210,
-    rating: 4.5,
-    reviewCount: 134,
-    status: "Suspended",
-    verified: true,
-    joinedDate: "Apr 2024",
-    monthlyRevenue: 165000,
-    specialties: ["Hero", "Honda", "Bajaj"],
-  },
-];
+interface WorkshopOwner {
+  name: string;
+  phone: string;
+  avatarUrl: string | null;
+}
+
+interface Workshop {
+  id: string;
+  ownerId: string;
+  owner: WorkshopOwner;
+  name: string;
+  address: string;
+  gstNumber: string;
+  phone: string;
+  rating: number;
+  reviewCount: number;
+  specialties: string[];
+  monthlyRevenue: number;
+  verificationStatus: "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
+  createdAt: string;
+  _count?: {
+    spareParts: number;
+  };
+  spareParts?: unknown[];
+}
+
+// --- Status Mapping ---
+
+function mapStatus(verificationStatus: string): string {
+  switch (verificationStatus) {
+    case "APPROVED":
+      return "Active";
+    case "PENDING":
+      return "Pending";
+    case "SUSPENDED":
+      return "Suspended";
+    case "REJECTED":
+      return "Rejected";
+    default:
+      return "Pending";
+  }
+}
 
 // --- Status Badge ---
 
@@ -140,6 +105,10 @@ function WorkshopStatusBadge({ status }: { status: string }) {
     Suspended: {
       className: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
       icon: <Ban className="h-3 w-3" />,
+    },
+    Rejected: {
+      className: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+      icon: <XCircle className="h-3 w-3" />,
     },
   };
 
@@ -178,33 +147,209 @@ function StarRating({ rating, reviewCount }: { rating: number; reviewCount: numb
   );
 }
 
+// --- Loading Skeleton ---
+
+function WorkshopsLoadingSkeleton() {
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header skeleton */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <Skeleton className="h-8 w-40 mb-2" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <Skeleton className="h-9 w-36" />
+      </div>
+
+      {/* Stats skeleton */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i}>
+            <CardContent className="pt-0">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-9 w-9 rounded-lg" />
+                <div>
+                  <Skeleton className="h-3 w-12 mb-1.5" />
+                  <Skeleton className="h-6 w-10" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Controls skeleton */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Skeleton className="h-9 w-full max-w-sm" />
+        <Skeleton className="h-9 w-[160px]" />
+      </div>
+
+      {/* Table skeleton */}
+      <Card>
+        <CardContent className="pt-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-muted-foreground">
+                  <th className="pb-3 pr-4 text-left font-medium">Workshop Name</th>
+                  <th className="pb-3 pr-4 text-left font-medium">Owner</th>
+                  <th className="pb-3 pr-4 text-left font-medium">Location</th>
+                  <th className="pb-3 pr-4 text-left font-medium">GST Number</th>
+                  <th className="pb-3 pr-4 text-left font-medium">Parts Listed</th>
+                  <th className="pb-3 pr-4 text-left font-medium">Rating</th>
+                  <th className="pb-3 pr-4 text-left font-medium">Revenue</th>
+                  <th className="pb-3 pr-4 text-left font-medium">Status</th>
+                  <th className="pb-3 text-left font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-3.5 pr-4">
+                      <div className="flex items-center gap-2.5">
+                        <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
+                        <div className="min-w-0">
+                          <Skeleton className="h-4 w-40 mb-1.5" />
+                          <div className="flex gap-1">
+                            <Skeleton className="h-4 w-12 rounded" />
+                            <Skeleton className="h-4 w-10 rounded" />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <Skeleton className="h-4 w-28 mb-1" />
+                      <Skeleton className="h-3 w-32" />
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <Skeleton className="h-3 w-36" />
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <Skeleton className="h-3 w-32" />
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <Skeleton className="h-4 w-10" />
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <Skeleton className="h-4 w-28" />
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <Skeleton className="h-4 w-16" />
+                    </td>
+                    <td className="py-3.5 pr-4">
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                    </td>
+                    <td className="py-3.5">
+                      <Skeleton className="h-7 w-7 rounded" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// --- Error State ---
+
+function WorkshopsErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
+  return (
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Workshops</h1>
+        <p className="text-muted-foreground text-sm">
+          Manage registered workshops and spare parts suppliers
+        </p>
+      </div>
+      <Card>
+        <CardContent className="pt-0">
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <AlertCircle className="h-10 w-10 mb-3 text-red-500 opacity-60" />
+            <p className="text-sm font-medium text-foreground">Failed to load workshops</p>
+            <p className="text-xs mt-1 mb-4">{error.message || "An unexpected error occurred"}</p>
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Try Again
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // --- Page Component ---
 
 export default function WorkshopsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const filtered = workshops.filter((ws) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      ws.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ws.owner.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ws.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ws.gstNumber.toLowerCase().includes(searchQuery.toLowerCase());
+  const { data, isLoading, isError, error, refetch } = useWorkshops();
+  const verifyWorkshop = useVerifyWorkshop();
 
-    const matchesStatus =
-      statusFilter === "all" ||
-      ws.status.toLowerCase() === statusFilter;
+  const workshops: Workshop[] = useMemo(() => {
+    if (!data) return [];
+    return Array.isArray(data) ? data : [];
+  }, [data]);
 
-    return matchesSearch && matchesStatus;
-  });
-
-  const stats = {
-    total: workshops.length,
-    active: workshops.filter((w) => w.status === "Active").length,
-    pending: workshops.filter((w) => w.status === "Pending").length,
-    totalParts: workshops.reduce((sum, w) => sum + w.partsListed, 0),
+  const getPartsCount = (ws: Workshop): number => {
+    if (ws._count?.spareParts !== undefined) return ws._count.spareParts;
+    if (ws.spareParts) return ws.spareParts.length;
+    return 0;
   };
+
+  const filtered = useMemo(() => {
+    return workshops.filter((ws) => {
+      const status = mapStatus(ws.verificationStatus);
+      const ownerName = ws.owner?.name || "";
+      const workshopPhone = ws.owner?.phone || ws.phone || "";
+
+      const matchesSearch =
+        searchQuery === "" ||
+        ws.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ownerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ws.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ws.gstNumber.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        status.toLowerCase() === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [workshops, searchQuery, statusFilter]);
+
+  const stats = useMemo(() => ({
+    total: workshops.length,
+    active: workshops.filter((w) => w.verificationStatus === "APPROVED").length,
+    pending: workshops.filter((w) => w.verificationStatus === "PENDING").length,
+    totalParts: workshops.reduce((sum, w) => sum + getPartsCount(w), 0),
+  }), [workshops]);
+
+  const handleAction = (workshopId: string, action: "APPROVED" | "REJECTED" | "SUSPENDED", label: string) => {
+    verifyWorkshop.mutate(
+      { id: workshopId, action },
+      {
+        onSuccess: () => {
+          toast.success(`Workshop ${label.toLowerCase()} successfully`);
+        },
+        onError: (err: Error) => {
+          toast.error(err.message || `Failed to ${label.toLowerCase()} workshop`);
+        },
+      }
+    );
+  };
+
+  if (isLoading) {
+    return <WorkshopsLoadingSkeleton />;
+  }
+
+  if (isError) {
+    return <WorkshopsErrorState error={error as Error} onRetry={() => refetch()} />;
+  }
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -316,6 +461,7 @@ export default function WorkshopsPage() {
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="suspended">Suspended</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
           </SelectContent>
         </Select>
       </motion.div>
@@ -340,134 +486,168 @@ export default function WorkshopsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((ws, index) => (
-                    <motion.tr
-                      key={ws.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.04, duration: 0.3 }}
-                      className="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                    >
-                      <td className="py-3.5 pr-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-                            <Store className="h-4 w-4 text-primary" />
+                  {filtered.map((ws, index) => {
+                    const status = mapStatus(ws.verificationStatus);
+                    const partsCount = getPartsCount(ws);
+                    const ownerName = ws.owner?.name || "Unknown";
+                    const ownerPhone = ws.owner?.phone || ws.phone || "";
+                    const isVerified = ws.verificationStatus === "APPROVED";
+
+                    return (
+                      <motion.tr
+                        key={ws.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.04, duration: 0.3 }}
+                        className="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="py-3.5 pr-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                              <Store className="h-4 w-4 text-primary" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-medium truncate">{ws.name}</p>
+                                {isVerified && (
+                                  <ShieldCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {ws.specialties.map((s) => (
+                                  <span
+                                    key={s}
+                                    className="text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5"
+                                  >
+                                    {s}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-medium truncate">{ws.name}</p>
-                              {ws.verified && (
-                                <ShieldCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <div>
+                            <p className="font-medium text-sm">{ownerName}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {ownerPhone}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            {ws.address}
+                          </div>
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {ws.gstNumber}
+                          </span>
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <div className="flex items-center gap-1.5">
+                            <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="font-semibold">{partsCount}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <StarRating rating={ws.rating} reviewCount={ws.reviewCount} />
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          {ws.monthlyRevenue > 0 ? (
+                            <div className="flex items-center gap-0.5 text-sm font-medium">
+                              <IndianRupee className="h-3.5 w-3.5" />
+                              {(ws.monthlyRevenue / 1000).toFixed(0)}k
+                              <span className="text-xs text-muted-foreground font-normal">/mo</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">N/A</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <WorkshopStatusBadge status={status} />
+                        </td>
+                        <td className="py-3.5">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon-xs">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem>
+                                <Eye className="h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <ExternalLink className="h-4 w-4" />
+                                View Storefront
+                              </DropdownMenuItem>
+                              {status === "Pending" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleAction(ws.id, "APPROVED", "approved")}
+                                    disabled={verifyWorkshop.isPending}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Approve
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => handleAction(ws.id, "REJECTED", "rejected")}
+                                    disabled={verifyWorkshop.isPending}
+                                  >
+                                    <XCircle className="h-4 w-4" />
+                                    Reject
+                                  </DropdownMenuItem>
+                                </>
                               )}
-                            </div>
-                            <div className="flex flex-wrap gap-1 mt-0.5">
-                              {ws.specialties.map((s) => (
-                                <span
-                                  key={s}
-                                  className="text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5"
-                                >
-                                  {s}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3.5 pr-4">
-                        <div>
-                          <p className="font-medium text-sm">{ws.owner}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {ws.phone}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="py-3.5 pr-4">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          {ws.location}
-                        </div>
-                      </td>
-                      <td className="py-3.5 pr-4">
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {ws.gstNumber}
-                        </span>
-                      </td>
-                      <td className="py-3.5 pr-4">
-                        <div className="flex items-center gap-1.5">
-                          <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="font-semibold">{ws.partsListed}</span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 pr-4">
-                        <StarRating rating={ws.rating} reviewCount={ws.reviewCount} />
-                      </td>
-                      <td className="py-3.5 pr-4">
-                        {ws.monthlyRevenue > 0 ? (
-                          <div className="flex items-center gap-0.5 text-sm font-medium">
-                            <IndianRupee className="h-3.5 w-3.5" />
-                            {(ws.monthlyRevenue / 1000).toFixed(0)}k
-                            <span className="text-xs text-muted-foreground font-normal">/mo</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">N/A</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 pr-4">
-                        <WorkshopStatusBadge status={ws.status} />
-                      </td>
-                      <td className="py-3.5">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-xs">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Eye className="h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <ExternalLink className="h-4 w-4" />
-                              View Storefront
-                            </DropdownMenuItem>
-                            {ws.status === "Pending" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem>
-                                  <CheckCircle2 className="h-4 w-4" />
-                                  Approve
-                                </DropdownMenuItem>
-                                <DropdownMenuItem variant="destructive">
-                                  <XCircle className="h-4 w-4" />
-                                  Reject
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {ws.status === "Active" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem variant="destructive">
-                                  <Ban className="h-4 w-4" />
-                                  Suspend
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {ws.status === "Suspended" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem>
-                                  <CheckCircle2 className="h-4 w-4" />
-                                  Reactivate
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </motion.tr>
-                  ))}
+                              {status === "Active" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => handleAction(ws.id, "SUSPENDED", "suspended")}
+                                    disabled={verifyWorkshop.isPending}
+                                  >
+                                    <Ban className="h-4 w-4" />
+                                    Suspend
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {status === "Suspended" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleAction(ws.id, "APPROVED", "reactivated")}
+                                    disabled={verifyWorkshop.isPending}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Reactivate
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {status === "Rejected" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleAction(ws.id, "APPROVED", "approved")}
+                                    disabled={verifyWorkshop.isPending}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Approve
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

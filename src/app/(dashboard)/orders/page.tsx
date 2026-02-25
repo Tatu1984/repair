@@ -16,6 +16,8 @@ import {
   MapPin,
   Phone,
   FileText,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,9 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+import { useOrders, useUpdateOrderStatus } from "@/lib/hooks/use-orders";
 
 // --- Types ---
 
@@ -37,11 +42,12 @@ type OrderStatus =
   | "Confirmed"
   | "Shipped"
   | "Delivered"
-  | "Returned";
+  | "Returned"
+  | "Cancelled";
 
-type PaymentStatus = "Paid" | "Escrow" | "Refunded" | "COD";
+type PaymentStatus = "Paid" | "Escrow" | "Refunded" | "COD" | "Pending" | "Released" | "Failed";
 
-type OrderType = "Part Order" | "Service Order";
+type OrderType = "Part Order";
 
 interface TimelineEvent {
   status: string;
@@ -49,8 +55,9 @@ interface TimelineEvent {
   description: string;
 }
 
-interface Order {
+interface MappedOrder {
   id: string;
+  displayId: string;
   customer: string;
   customerPhone: string;
   customerCity: string;
@@ -67,280 +74,6 @@ interface Order {
   timeline: TimelineEvent[];
 }
 
-// --- Mock Data ---
-
-const orders: Order[] = [
-  {
-    id: "ORD-10234",
-    customer: "Arun Mehta",
-    customerPhone: "+91 98765 43210",
-    customerCity: "Mumbai",
-    item: "Brake Pad Set - Honda Activa",
-    type: "Part Order",
-    workshopMechanic: "Sharma Auto Parts",
-    amount: 531,
-    subtotal: 450,
-    gst: 81,
-    platformFee: 0,
-    paymentStatus: "Paid",
-    orderStatus: "Delivered",
-    date: "2026-02-22",
-    timeline: [
-      {
-        status: "Order Placed",
-        timestamp: "22 Feb 2026, 09:15 AM",
-        description: "Order placed by Arun Mehta",
-      },
-      {
-        status: "Confirmed",
-        timestamp: "22 Feb 2026, 09:45 AM",
-        description: "Confirmed by Sharma Auto Parts",
-      },
-      {
-        status: "Shipped",
-        timestamp: "22 Feb 2026, 02:30 PM",
-        description: "Dispatched via local delivery",
-      },
-      {
-        status: "Delivered",
-        timestamp: "22 Feb 2026, 05:10 PM",
-        description: "Delivered to customer address",
-      },
-    ],
-  },
-  {
-    id: "ORD-10235",
-    customer: "Priya Sharma",
-    customerPhone: "+91 87654 32109",
-    customerCity: "Delhi",
-    item: "Engine Oil Change + Filter",
-    type: "Service Order",
-    workshopMechanic: "Ravi Kumar (Mechanic)",
-    amount: 1200,
-    subtotal: 999,
-    gst: 180,
-    platformFee: 21,
-    paymentStatus: "Escrow",
-    orderStatus: "Confirmed",
-    date: "2026-02-23",
-    timeline: [
-      {
-        status: "Order Placed",
-        timestamp: "23 Feb 2026, 10:00 AM",
-        description: "Service booked by Priya Sharma",
-      },
-      {
-        status: "Confirmed",
-        timestamp: "23 Feb 2026, 10:30 AM",
-        description: "Mechanic Ravi Kumar accepted the job",
-      },
-    ],
-  },
-  {
-    id: "ORD-10236",
-    customer: "Vikram Joshi",
-    customerPhone: "+91 99887 76655",
-    customerCity: "Bangalore",
-    item: "Clutch Plate - Bajaj Pulsar 150",
-    type: "Part Order",
-    workshopMechanic: "Rajesh Two Wheeler Hub",
-    amount: 802,
-    subtotal: 680,
-    gst: 122,
-    platformFee: 0,
-    paymentStatus: "COD",
-    orderStatus: "Shipped",
-    date: "2026-02-23",
-    timeline: [
-      {
-        status: "Order Placed",
-        timestamp: "23 Feb 2026, 11:20 AM",
-        description: "Order placed by Vikram Joshi",
-      },
-      {
-        status: "Confirmed",
-        timestamp: "23 Feb 2026, 12:00 PM",
-        description: "Confirmed by Rajesh Two Wheeler Hub",
-      },
-      {
-        status: "Shipped",
-        timestamp: "23 Feb 2026, 04:15 PM",
-        description: "Handed over to delivery partner",
-      },
-    ],
-  },
-  {
-    id: "ORD-10237",
-    customer: "Neha Gupta",
-    customerPhone: "+91 77665 54433",
-    customerCity: "Chennai",
-    item: "Tyre Replacement - Front",
-    type: "Service Order",
-    workshopMechanic: "Kumar Auto Electricals",
-    amount: 3800,
-    subtotal: 3220,
-    gst: 580,
-    platformFee: 0,
-    paymentStatus: "Paid",
-    orderStatus: "Pending",
-    date: "2026-02-24",
-    timeline: [
-      {
-        status: "Order Placed",
-        timestamp: "24 Feb 2026, 08:45 AM",
-        description: "Service booked by Neha Gupta",
-      },
-    ],
-  },
-  {
-    id: "ORD-10238",
-    customer: "Rahul Patil",
-    customerPhone: "+91 88990 01122",
-    customerCity: "Pune",
-    item: "Battery 12V 35Ah - Bajaj Chetak EV",
-    type: "Part Order",
-    workshopMechanic: "GreenDrive EV Solutions",
-    amount: 10030,
-    subtotal: 8500,
-    gst: 1530,
-    platformFee: 0,
-    paymentStatus: "Paid",
-    orderStatus: "Delivered",
-    date: "2026-02-20",
-    timeline: [
-      {
-        status: "Order Placed",
-        timestamp: "20 Feb 2026, 02:00 PM",
-        description: "Order placed by Rahul Patil",
-      },
-      {
-        status: "Confirmed",
-        timestamp: "20 Feb 2026, 02:30 PM",
-        description: "Confirmed by GreenDrive EV Solutions",
-      },
-      {
-        status: "Shipped",
-        timestamp: "20 Feb 2026, 05:00 PM",
-        description: "Dispatched from Hinjawadi hub",
-      },
-      {
-        status: "Delivered",
-        timestamp: "21 Feb 2026, 11:00 AM",
-        description: "Delivered to customer in Kothrud",
-      },
-    ],
-  },
-  {
-    id: "ORD-10239",
-    customer: "Deepak Singh",
-    customerPhone: "+91 90012 34567",
-    customerCity: "Ahmedabad",
-    item: "Suspension Coil Spring - Tata Nexon",
-    type: "Part Order",
-    workshopMechanic: "Patel Car Care",
-    amount: 2124,
-    subtotal: 1800,
-    gst: 324,
-    platformFee: 0,
-    paymentStatus: "Refunded",
-    orderStatus: "Returned",
-    date: "2026-02-18",
-    timeline: [
-      {
-        status: "Order Placed",
-        timestamp: "18 Feb 2026, 10:00 AM",
-        description: "Order placed by Deepak Singh",
-      },
-      {
-        status: "Confirmed",
-        timestamp: "18 Feb 2026, 10:20 AM",
-        description: "Confirmed by Patel Car Care",
-      },
-      {
-        status: "Shipped",
-        timestamp: "18 Feb 2026, 03:00 PM",
-        description: "Shipped via courier",
-      },
-      {
-        status: "Delivered",
-        timestamp: "19 Feb 2026, 01:00 PM",
-        description: "Delivered to customer",
-      },
-      {
-        status: "Return Requested",
-        timestamp: "20 Feb 2026, 09:00 AM",
-        description: "Customer requested return - wrong fitment",
-      },
-      {
-        status: "Returned",
-        timestamp: "22 Feb 2026, 04:00 PM",
-        description: "Item picked up and refund initiated",
-      },
-    ],
-  },
-  {
-    id: "ORD-10240",
-    customer: "Sunita Devi",
-    customerPhone: "+91 81234 56789",
-    customerCity: "Kolkata",
-    item: "Full Body Wash + Polish",
-    type: "Service Order",
-    workshopMechanic: "Verma Auto Garage",
-    amount: 1500,
-    subtotal: 1271,
-    gst: 229,
-    platformFee: 0,
-    paymentStatus: "COD",
-    orderStatus: "Confirmed",
-    date: "2026-02-24",
-    timeline: [
-      {
-        status: "Order Placed",
-        timestamp: "24 Feb 2026, 07:30 AM",
-        description: "Service booked by Sunita Devi",
-      },
-      {
-        status: "Confirmed",
-        timestamp: "24 Feb 2026, 08:00 AM",
-        description: "Accepted by Verma Auto Garage",
-      },
-    ],
-  },
-  {
-    id: "ORD-10241",
-    customer: "Manish Tiwari",
-    customerPhone: "+91 70123 45678",
-    customerCity: "Delhi",
-    item: "Head Light Assembly - Hero Splendor",
-    type: "Part Order",
-    workshopMechanic: "Gupta Motor Works",
-    amount: 1298,
-    subtotal: 1100,
-    gst: 198,
-    platformFee: 0,
-    paymentStatus: "Paid",
-    orderStatus: "Shipped",
-    date: "2026-02-23",
-    timeline: [
-      {
-        status: "Order Placed",
-        timestamp: "23 Feb 2026, 01:00 PM",
-        description: "Order placed by Manish Tiwari",
-      },
-      {
-        status: "Confirmed",
-        timestamp: "23 Feb 2026, 01:30 PM",
-        description: "Confirmed by Gupta Motor Works",
-      },
-      {
-        status: "Shipped",
-        timestamp: "23 Feb 2026, 06:00 PM",
-        description: "Dispatched from Karol Bagh",
-      },
-    ],
-  },
-];
-
 // --- Helpers ---
 
 function formatINR(amount: number) {
@@ -351,12 +84,140 @@ function formatINR(amount: number) {
   }).format(amount);
 }
 
+function formatDate(dateStr: string): string {
+  if (!dateStr) return "";
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatTimestamp(dateStr: string): string {
+  if (!dateStr) return "";
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function mapOrderStatus(status: string): OrderStatus {
+  const map: Record<string, OrderStatus> = {
+    PENDING: "Pending",
+    CONFIRMED: "Confirmed",
+    SHIPPED: "Shipped",
+    DELIVERED: "Delivered",
+    RETURNED: "Returned",
+    CANCELLED: "Cancelled",
+  };
+  return map[status] || "Pending";
+}
+
+function mapPaymentStatus(status: string): PaymentStatus {
+  const map: Record<string, PaymentStatus> = {
+    PENDING: "Pending",
+    PAID: "Paid",
+    ESCROW: "Escrow",
+    RELEASED: "Released",
+    REFUNDED: "Refunded",
+    COD: "COD",
+    FAILED: "Failed",
+  };
+  return map[status] || "Pending";
+}
+
+function generateTimeline(order: any): TimelineEvent[] {
+  const statuses = ["PENDING", "CONFIRMED", "SHIPPED", "DELIVERED"];
+  const currentIdx = statuses.indexOf(order.orderStatus);
+  const timeline: TimelineEvent[] = [
+    {
+      status: "Order Placed",
+      timestamp: formatTimestamp(order.createdAt),
+      description: `Order placed by ${order.buyer?.name || "Customer"}`,
+    },
+  ];
+  if (currentIdx >= 1) {
+    timeline.push({
+      status: "Confirmed",
+      timestamp: formatTimestamp(order.createdAt),
+      description: `Confirmed by ${order.workshop?.name || "Workshop"}`,
+    });
+  }
+  if (currentIdx >= 2) {
+    timeline.push({
+      status: "Shipped",
+      timestamp: "",
+      description: "Dispatched for delivery",
+    });
+  }
+  if (currentIdx >= 3) {
+    timeline.push({
+      status: "Delivered",
+      timestamp: "",
+      description: "Delivered to customer",
+    });
+  }
+  if (order.orderStatus === "RETURNED") {
+    timeline.push({
+      status: "Returned",
+      timestamp: "",
+      description: "Item returned",
+    });
+  }
+  if (order.orderStatus === "CANCELLED") {
+    timeline.push({
+      status: "Cancelled",
+      timestamp: "",
+      description: "Order cancelled",
+    });
+  }
+  return timeline;
+}
+
+function mapApiOrder(apiOrder: any): MappedOrder {
+  return {
+    id: apiOrder.id,
+    displayId: apiOrder.displayId || apiOrder.id,
+    customer: apiOrder.buyer?.name || "Unknown",
+    customerPhone: apiOrder.buyer?.phone || "",
+    customerCity: apiOrder.shippingAddress || apiOrder.workshop?.address || "",
+    item: apiOrder.part?.name || "Unknown Part",
+    type: "Part Order",
+    workshopMechanic: apiOrder.workshop?.name || "Unknown",
+    amount: apiOrder.totalAmount || 0,
+    subtotal: apiOrder.subtotal || 0,
+    gst: apiOrder.gstAmount || 0,
+    platformFee: apiOrder.platformFee || 0,
+    paymentStatus: mapPaymentStatus(apiOrder.paymentStatus),
+    orderStatus: mapOrderStatus(apiOrder.orderStatus),
+    date: formatDate(apiOrder.createdAt),
+    timeline: generateTimeline(apiOrder),
+  };
+}
+
+// --- Styles ---
+
 const orderStatusStyles: Record<OrderStatus, string> = {
   Pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
   Confirmed: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
   Shipped: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
   Delivered: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
   Returned: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  Cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300",
 };
 
 const paymentStatusStyles: Record<PaymentStatus, string> = {
@@ -364,6 +225,9 @@ const paymentStatusStyles: Record<PaymentStatus, string> = {
   Escrow: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
   Refunded: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   COD: "bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300",
+  Pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  Released: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  Failed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
 };
 
 const statusIcons: Record<OrderStatus, React.ReactNode> = {
@@ -372,11 +236,109 @@ const statusIcons: Record<OrderStatus, React.ReactNode> = {
   Shipped: <Truck className="size-4" />,
   Delivered: <Package className="size-4" />,
   Returned: <RotateCcw className="size-4" />,
+  Cancelled: <AlertCircle className="size-4" />,
 };
+
+// --- Loading Skeleton ---
+
+function OrdersLoadingSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Stats Skeleton */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Card key={i} className="gap-0 py-0">
+            <CardContent className="flex items-center gap-3 p-4">
+              <Skeleton className="size-9 rounded-lg" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-6 w-8" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Table Skeleton */}
+      <Card className="gap-0 overflow-hidden py-0">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Order ID</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Customer</th>
+                  <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground md:table-cell">Item</th>
+                  <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Workshop / Mechanic</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Amount</th>
+                  <th className="hidden px-4 py-3 text-center font-medium text-muted-foreground sm:table-cell">Payment</th>
+                  <th className="px-4 py-3 text-center font-medium text-muted-foreground">Status</th>
+                  <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">Date</th>
+                  <th className="px-4 py-3 text-center font-medium text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="border-b last:border-b-0">
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-4 py-3">
+                      <div className="space-y-1">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    </td>
+                    <td className="hidden px-4 py-3 md:table-cell">
+                      <div className="space-y-1">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                    </td>
+                    <td className="hidden px-4 py-3 lg:table-cell"><Skeleton className="h-4 w-32" /></td>
+                    <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-16" /></td>
+                    <td className="hidden px-4 py-3 text-center sm:table-cell"><Skeleton className="mx-auto h-5 w-14 rounded-full" /></td>
+                    <td className="px-4 py-3 text-center"><Skeleton className="mx-auto h-5 w-20 rounded-full" /></td>
+                    <td className="hidden px-4 py-3 lg:table-cell"><Skeleton className="h-4 w-24" /></td>
+                    <td className="px-4 py-3 text-center"><Skeleton className="mx-auto h-7 w-14 rounded-md" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// --- Error State ---
+
+function OrdersErrorState({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
+  return (
+    <div className="space-y-6">
+      <Card className="gap-0 py-0">
+        <CardContent className="flex flex-col items-center justify-center gap-4 py-16">
+          <div className="flex size-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+            <AlertCircle className="size-7 text-red-600 dark:text-red-400" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium">Failed to load orders</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {error?.message || "Something went wrong. Please try again."}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            <RefreshCw className="mr-1.5 size-3.5" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 // --- Stats ---
 
-function StatsBar({ filteredOrders }: { filteredOrders: Order[] }) {
+function StatsBar({ filteredOrders }: { filteredOrders: MappedOrder[] }) {
   const total = filteredOrders.length;
   const pending = filteredOrders.filter(
     (o) => o.orderStatus === "Pending"
@@ -454,7 +416,7 @@ function OrderDetailPanel({
   open,
   onClose,
 }: {
-  order: Order | null;
+  order: MappedOrder | null;
   open: boolean;
   onClose: () => void;
 }) {
@@ -466,7 +428,7 @@ function OrderDetailPanel({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <FileText className="size-5" />
-            Order {order.id}
+            Order {order.displayId}
           </SheetTitle>
           <SheetDescription>
             Placed on {order.date} - {order.type}
@@ -584,9 +546,11 @@ function OrderDetailPanel({
                   {/* Content */}
                   <div className="flex-1">
                     <p className="text-sm font-medium">{event.status}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {event.timestamp}
-                    </p>
+                    {event.timestamp && (
+                      <p className="text-xs text-muted-foreground">
+                        {event.timestamp}
+                      </p>
+                    )}
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {event.description}
                     </p>
@@ -603,19 +567,39 @@ function OrderDetailPanel({
 
 // --- Component ---
 
+const TAB_STATUS_MAP: Record<string, string | undefined> = {
+  all: undefined,
+  pending: "PENDING",
+  confirmed: "CONFIRMED",
+  shipped: "SHIPPED",
+  delivered: "DELIVERED",
+  returned: "RETURNED",
+};
+
 export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState("all");
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<MappedOrder | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  const statusFilter = TAB_STATUS_MAP[activeTab];
+  const { data, isLoading, isError, error, refetch } = useOrders({
+    status: statusFilter,
+    page: 1,
+  });
+  const updateStatus = useUpdateOrderStatus();
+
+  // Map API data to our internal format
+  const mappedOrders: MappedOrder[] = (data?.orders || []).map(mapApiOrder);
+
+  // Client-side filter as a safety net (API should already filter, but ensures consistency)
   const filteredOrders =
     activeTab === "all"
-      ? orders
-      : activeTab === "parts"
-      ? orders.filter((o) => o.type === "Part Order")
-      : orders.filter((o) => o.type === "Service Order");
+      ? mappedOrders
+      : mappedOrders.filter(
+          (o) => o.orderStatus === mapOrderStatus(statusFilter || "")
+        );
 
-  const openOrderDetail = (order: Order) => {
+  const openOrderDetail = (order: MappedOrder) => {
     setSelectedOrder(order);
     setSheetOpen(true);
   };
@@ -626,7 +610,7 @@ export default function OrdersPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Orders</h1>
         <p className="text-sm text-muted-foreground">
-          Manage and track all your part and service orders
+          Manage and track all your part orders
         </p>
       </div>
 
@@ -634,150 +618,166 @@ export default function OrdersPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="all">All Orders</TabsTrigger>
-          <TabsTrigger value="parts">Part Orders</TabsTrigger>
-          <TabsTrigger value="services">Service Orders</TabsTrigger>
+          <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
+          <TabsTrigger value="shipped">Shipped</TabsTrigger>
+          <TabsTrigger value="delivered">Delivered</TabsTrigger>
+          <TabsTrigger value="returned">Returned</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-4 space-y-6">
-          {/* Stats */}
-          <StatsBar filteredOrders={filteredOrders} />
+          {/* Loading State */}
+          {isLoading && <OrdersLoadingSkeleton />}
 
-          {/* Orders Table */}
-          <Card className="gap-0 overflow-hidden py-0">
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                        Order ID
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                        Customer
-                      </th>
-                      <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground md:table-cell">
-                        Item
-                      </th>
-                      <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">
-                        Workshop / Mechanic
-                      </th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                        Amount
-                      </th>
-                      <th className="hidden px-4 py-3 text-center font-medium text-muted-foreground sm:table-cell">
-                        Payment
-                      </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted-foreground">
-                        Status
-                      </th>
-                      <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">
-                        Date
-                      </th>
-                      <th className="px-4 py-3 text-center font-medium text-muted-foreground">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <AnimatePresence mode="popLayout">
-                      {filteredOrders.map((order, index) => (
-                        <motion.tr
-                          key={order.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0 }}
-                          transition={{
-                            duration: 0.2,
-                            delay: index * 0.03,
-                          }}
-                          className="border-b last:border-b-0 transition-colors hover:bg-muted/30"
-                        >
-                          <td className="px-4 py-3">
-                            <span className="font-mono text-xs font-semibold">
-                              {order.id}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div>
-                              <p className="font-medium">{order.customer}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {order.customerCity}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="hidden px-4 py-3 md:table-cell">
-                            <div>
-                              <p className="max-w-[200px] truncate">
-                                {order.item}
-                              </p>
-                              <Badge
-                                variant="outline"
-                                className="mt-0.5 text-[10px]"
-                              >
-                                {order.type}
-                              </Badge>
-                            </div>
-                          </td>
-                          <td className="hidden px-4 py-3 lg:table-cell">
-                            <p className="max-w-[160px] truncate text-xs">
-                              {order.workshopMechanic}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium">
-                            {formatINR(order.amount)}
-                          </td>
-                          <td className="hidden px-4 py-3 text-center sm:table-cell">
-                            <Badge
-                              className={`border-0 text-[10px] ${
-                                paymentStatusStyles[order.paymentStatus]
-                              }`}
-                            >
-                              {order.paymentStatus}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <Badge
-                              className={`border-0 text-[10px] ${
-                                orderStatusStyles[order.orderStatus]
-                              }`}
-                            >
-                              {statusIcons[order.orderStatus]}
-                              {order.orderStatus}
-                            </Badge>
-                          </td>
-                          <td className="hidden px-4 py-3 text-xs text-muted-foreground lg:table-cell">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="size-3" />
-                              {order.date}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              onClick={() => openOrderDetail(order)}
-                            >
-                              <Eye className="size-3.5" />
-                              View
-                            </Button>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </AnimatePresence>
-                  </tbody>
-                </table>
-              </div>
+          {/* Error State */}
+          {isError && !isLoading && (
+            <OrdersErrorState error={error as Error | null} onRetry={() => refetch()} />
+          )}
 
-              {filteredOrders.length === 0 && (
-                <div className="flex flex-col items-center justify-center gap-2 py-16">
-                  <ShoppingBag className="size-10 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">
-                    No orders found in this category
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Data State */}
+          {!isLoading && !isError && (
+            <>
+              {/* Stats */}
+              <StatsBar filteredOrders={filteredOrders} />
+
+              {/* Orders Table */}
+              <Card className="gap-0 overflow-hidden py-0">
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                            Order ID
+                          </th>
+                          <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                            Customer
+                          </th>
+                          <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground md:table-cell">
+                            Item
+                          </th>
+                          <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">
+                            Workshop / Mechanic
+                          </th>
+                          <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                            Amount
+                          </th>
+                          <th className="hidden px-4 py-3 text-center font-medium text-muted-foreground sm:table-cell">
+                            Payment
+                          </th>
+                          <th className="px-4 py-3 text-center font-medium text-muted-foreground">
+                            Status
+                          </th>
+                          <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">
+                            Date
+                          </th>
+                          <th className="px-4 py-3 text-center font-medium text-muted-foreground">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <AnimatePresence mode="popLayout">
+                          {filteredOrders.map((order, index) => (
+                            <motion.tr
+                              key={order.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0 }}
+                              transition={{
+                                duration: 0.2,
+                                delay: index * 0.03,
+                              }}
+                              className="border-b last:border-b-0 transition-colors hover:bg-muted/30"
+                            >
+                              <td className="px-4 py-3">
+                                <span className="font-mono text-xs font-semibold">
+                                  {order.displayId}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div>
+                                  <p className="font-medium">{order.customer}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {order.customerCity}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="hidden px-4 py-3 md:table-cell">
+                                <div>
+                                  <p className="max-w-[200px] truncate">
+                                    {order.item}
+                                  </p>
+                                  <Badge
+                                    variant="outline"
+                                    className="mt-0.5 text-[10px]"
+                                  >
+                                    {order.type}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="hidden px-4 py-3 lg:table-cell">
+                                <p className="max-w-[160px] truncate text-xs">
+                                  {order.workshopMechanic}
+                                </p>
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium">
+                                {formatINR(order.amount)}
+                              </td>
+                              <td className="hidden px-4 py-3 text-center sm:table-cell">
+                                <Badge
+                                  className={`border-0 text-[10px] ${
+                                    paymentStatusStyles[order.paymentStatus]
+                                  }`}
+                                >
+                                  {order.paymentStatus}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <Badge
+                                  className={`border-0 text-[10px] ${
+                                    orderStatusStyles[order.orderStatus]
+                                  }`}
+                                >
+                                  {statusIcons[order.orderStatus]}
+                                  {order.orderStatus}
+                                </Badge>
+                              </td>
+                              <td className="hidden px-4 py-3 text-xs text-muted-foreground lg:table-cell">
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="size-3" />
+                                  {order.date}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  onClick={() => openOrderDetail(order)}
+                                >
+                                  <Eye className="size-3.5" />
+                                  View
+                                </Button>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </AnimatePresence>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {filteredOrders.length === 0 && (
+                    <div className="flex flex-col items-center justify-center gap-2 py-16">
+                      <ShoppingBag className="size-10 text-muted-foreground/40" />
+                      <p className="text-sm text-muted-foreground">
+                        No orders found in this category
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
       </Tabs>
 

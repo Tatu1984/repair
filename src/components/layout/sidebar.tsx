@@ -24,6 +24,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar";
+import { useAuthStore } from "@/lib/store/auth-store";
 
 const navItems = [
   {
@@ -80,6 +81,9 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname();
+  const user = useAuthStore((s) => s.user);
+  const displayName = user?.name || user?.role || "User";
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
     <aside
@@ -166,14 +170,14 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
         )}
       >
         <Avatar size="sm">
-          <AvatarImage src="/avatars/admin.png" alt="Admin" />
-          <AvatarFallback>AD</AvatarFallback>
+          <AvatarImage src={user?.avatarUrl || ""} alt={displayName} />
+          <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
         {!collapsed && (
           <div className="flex flex-col overflow-hidden">
-            <span className="truncate text-sm font-medium">Admin User</span>
+            <span className="truncate text-sm font-medium">{displayName}</span>
             <span className="text-muted-foreground truncate text-xs">
-              admin@repairassist.com
+              {user?.email || `+91 ${user?.phone || ""}`}
             </span>
           </div>
         )}

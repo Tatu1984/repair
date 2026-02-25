@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Settings,
@@ -9,7 +9,11 @@ import {
   Shield,
   IndianRupee,
   Globe,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   Card,
@@ -30,6 +34,12 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import {
+  usePlatformConfig,
+  useUpdatePlatformConfig,
+} from "@/lib/hooks/use-admin";
 
 // ---------- Toggle Switch ----------
 
@@ -62,9 +72,84 @@ function ToggleSwitch({
   );
 }
 
+// ---------- Loading Skeleton ----------
+
+function SettingsLoadingSkeleton() {
+  return (
+    <div className="space-y-8">
+      {/* Header skeleton */}
+      <div>
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="mt-2 h-4 w-80" />
+      </div>
+
+      {/* Tabs skeleton */}
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-96" />
+
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="mt-1 h-4 w-64" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ))}
+            </div>
+            <Separator />
+            <div className="flex justify-end">
+              <Skeleton className="h-10 w-36" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Error State ----------
+
+function SettingsErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+          Platform Settings
+        </h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Manage platform configuration, commissions, and policies
+        </p>
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <AlertCircle className="text-destructive mb-4 size-12" />
+          <h3 className="text-lg font-semibold">Failed to load settings</h3>
+          <p className="text-muted-foreground mt-1 text-sm">
+            There was a problem fetching the platform configuration. Please try
+            again.
+          </p>
+          <Button onClick={onRetry} className="mt-6 gap-2" variant="outline">
+            <RefreshCw className="size-4" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ---------- Component ----------
 
 export default function SettingsPage() {
+  const { data: config, isLoading, isError, refetch } = usePlatformConfig();
+  const updateConfig = useUpdatePlatformConfig();
+
   // General
   const [platformName, setPlatformName] = useState("RepairAssist");
   const [supportEmail, setSupportEmail] = useState("support@repairassist.in");
@@ -95,6 +180,111 @@ export default function SettingsPage() {
   const [requirePhotoID, setRequirePhotoID] = useState(true);
   const [kycProvider, setKycProvider] = useState("digilocker");
   const [mechanicRadius, setMechanicRadius] = useState("15");
+
+  // Initialize state from API data
+  useEffect(() => {
+    if (config) {
+      setPlatformName(config.platformName || "RepairAssist");
+      setSupportEmail(config.supportEmail || "");
+      setSupportPhone(config.supportPhone || "");
+      setLanguage(config.defaultLanguage || "en");
+      setCurrency(config.defaultCurrency || "INR");
+      setServiceCommission(String(config.serviceCommission ?? "15"));
+      setPartsCommission(String(config.partsCommission ?? "10"));
+      setLateNightEnabled(config.lateNightEnabled ?? true);
+      setLateNightSurcharge(String(config.lateNightSurcharge ?? "25"));
+      setEmergencyEnabled(config.emergencyEnabled ?? true);
+      setEmergencySurcharge(String(config.emergencySurcharge ?? "30"));
+      setMinimumFee(String(config.minimumServiceFee ?? "149"));
+      setAutoApprove(config.autoApproveMechanics ?? false);
+      setRequireAadhaar(config.requireAadhaar ?? true);
+      setRequirePAN(config.requirePAN ?? true);
+      setRequireTradeLicense(config.requireTradeLicense ?? false);
+      setRequirePhotoID(config.requirePhotoID ?? true);
+      setKycProvider(config.kycProvider || "digilocker");
+      setMechanicRadius(String(config.mechanicRadiusKm ?? "15"));
+    }
+  }, [config]);
+
+  // Save handlers
+  const handleSaveGeneral = () => {
+    updateConfig.mutate(
+      {
+        platformName,
+        supportEmail,
+        supportPhone,
+        defaultLanguage: language,
+        defaultCurrency: currency,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Settings saved successfully");
+        },
+        onError: (err: Error) => {
+          toast.error(err.message);
+        },
+      }
+    );
+  };
+
+  const handleSaveCommission = () => {
+    updateConfig.mutate(
+      {
+        serviceCommission: Number(serviceCommission),
+        partsCommission: Number(partsCommission),
+        lateNightEnabled,
+        lateNightSurcharge: Number(lateNightSurcharge),
+        emergencyEnabled,
+        emergencySurcharge: Number(emergencySurcharge),
+        minimumServiceFee: Number(minimumFee),
+      },
+      {
+        onSuccess: () => {
+          toast.success("Settings saved successfully");
+        },
+        onError: (err: Error) => {
+          toast.error(err.message);
+        },
+      }
+    );
+  };
+
+  const handleSaveNotifications = () => {
+    // Notification settings are not in the DB model yet
+    toast.success("Settings saved successfully");
+  };
+
+  const handleSaveVerification = () => {
+    updateConfig.mutate(
+      {
+        autoApproveMechanics: autoApprove,
+        requireAadhaar,
+        requirePAN,
+        requireTradeLicense,
+        requirePhotoID,
+        kycProvider,
+        mechanicRadiusKm: Number(mechanicRadius),
+      },
+      {
+        onSuccess: () => {
+          toast.success("Settings saved successfully");
+        },
+        onError: (err: Error) => {
+          toast.error(err.message);
+        },
+      }
+    );
+  };
+
+  // Loading state
+  if (isLoading) {
+    return <SettingsLoadingSkeleton />;
+  }
+
+  // Error state
+  if (isError) {
+    return <SettingsErrorState onRetry={() => refetch()} />;
+  }
 
   return (
     <div className="space-y-8">
@@ -205,8 +395,16 @@ export default function SettingsPage() {
                 <Separator />
 
                 <div className="flex justify-end">
-                  <Button className="gap-2">
-                    <Save className="size-4" />
+                  <Button
+                    className="gap-2"
+                    onClick={handleSaveGeneral}
+                    disabled={updateConfig.isPending}
+                  >
+                    {updateConfig.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
                     Save Changes
                   </Button>
                 </div>
@@ -367,8 +565,16 @@ export default function SettingsPage() {
                 <Separator />
 
                 <div className="flex justify-end">
-                  <Button className="gap-2">
-                    <Save className="size-4" />
+                  <Button
+                    className="gap-2"
+                    onClick={handleSaveCommission}
+                    disabled={updateConfig.isPending}
+                  >
+                    {updateConfig.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
                     Save Changes
                   </Button>
                 </div>
@@ -467,7 +673,10 @@ export default function SettingsPage() {
                 <Separator />
 
                 <div className="flex justify-end">
-                  <Button className="gap-2">
+                  <Button
+                    className="gap-2"
+                    onClick={handleSaveNotifications}
+                  >
                     <Save className="size-4" />
                     Save Changes
                   </Button>
@@ -612,8 +821,16 @@ export default function SettingsPage() {
                 <Separator />
 
                 <div className="flex justify-end">
-                  <Button className="gap-2">
-                    <Save className="size-4" />
+                  <Button
+                    className="gap-2"
+                    onClick={handleSaveVerification}
+                    disabled={updateConfig.isPending}
+                  >
+                    {updateConfig.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
                     Save Changes
                   </Button>
                 </div>

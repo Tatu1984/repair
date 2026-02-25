@@ -1,0 +1,436 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────
+
+enum UserRole {
+  RIDER
+  MECHANIC
+  WORKSHOP
+  ADMIN
+}
+
+enum MechanicStatus {
+  ONLINE
+  OFFLINE
+  BUSY
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum EmergencyType {
+  FLAT_TYRE
+  ENGINE_STALL
+  BATTERY_DEAD
+  CHAIN_BREAK
+  FUEL_EMPTY
+  BRAKE_FAILURE
+  PUNCTURE
+  CLUTCH_ISSUE
+  SELF_START_FAIL
+  OVERHEATING
+  OTHER
+}
+
+enum BreakdownStatus {
+  PENDING
+  SEARCHING
+  ACCEPTED
+  EN_ROUTE
+  ARRIVED
+  DIAGNOSING
+  ESTIMATE_SENT
+  ESTIMATE_APPROVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PartCondition {
+  USED_GOOD
+  REFURBISHED
+  LIKE_NEW
+  OEM_SURPLUS
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  ESCROW
+  RELEASED
+  REFUNDED
+  COD
+  FAILED
+}
+
+enum PaymentType {
+  BREAKDOWN
+  PART_ORDER
+}
+
+enum NotificationType {
+  BREAKDOWN_NEW
+  BREAKDOWN_ACCEPTED
+  BREAKDOWN_COMPLETED
+  MECHANIC_NEARBY
+  ORDER_CONFIRMED
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  PAYMENT_RECEIVED
+  DISPUTE_UPDATE
+  SYSTEM
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+enum DisputePriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ChatMessageType {
+  TEXT
+  IMAGE
+  LOCATION
+  SYSTEM
+}
+
+// ─── Models ─────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  email     String?
+  name      String?
+  role      UserRole @default(RIDER)
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  mechanic          Mechanic?
+  workshop          Workshop?
+  refreshTokens     RefreshToken[]
+  breakdownsAsRider BreakdownRequest[] @relation("RiderBreakdowns")
+  partOrders        PartOrder[]        @relation("BuyerOrders")
+  payments          Payment[]
+  ratingsGiven      Rating[]           @relation("RatingsGiven")
+  ratingsReceived   Rating[]           @relation("RatingsReceived")
+  disputesRaised    Dispute[]
+  chatMessages      ChatMessage[]
+  notifications     Notification[]
+
+  @@index([phone])
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model OtpVerification {
+  id        String   @id @default(cuid())
+  phone     String
+  otp       String
+  role      UserRole @default(RIDER)
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, otp])
+}
+
+model Mechanic {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aadhaarNumber      String?
+  panNumber          String?
+  tradeLicense       String?
+  photoIdUrl         String?
+  skills             Json               @default("[]") // e.g. ["2W", "4W", "EV"]
+  latitude           Float?
+  longitude          Float?
+  status             MechanicStatus     @default(OFFLINE)
+  isOnline           Boolean            @default(false)
+  rating             Float              @default(0)
+  totalJobs          Int                @default(0)
+  completedToday     Int                @default(0)
+  earnings           Float              @default(0)
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Relations
+  breakdowns BreakdownRequest[] @relation("MechanicBreakdowns")
+
+  @@index([latitude, longitude])
+  @@index([status])
+  @@index([verificationStatus])
+}
+
+model Workshop {
+  id                 String             @id @default(cuid())
+  ownerId            String             @unique
+  owner              User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name               String
+  address            String
+  latitude           Float?
+  longitude          Float?
+  gstNumber          String?
+  phone              String?
+  rating             Float              @default(0)
+  reviewCount        Int                @default(0)
+  specialties        Json               @default("[]") // e.g. ["Honda", "TVS"]
+  monthlyRevenue     Float              @default(0)
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Relations
+  spareParts SparePart[]
+  partOrders PartOrder[] @relation("WorkshopOrders")
+
+  @@index([latitude, longitude])
+  @@index([verificationStatus])
+}
+
+model BreakdownRequest {
+  id              String          @id @default(cuid())
+  displayId       String          @unique @default(cuid())
+  riderId         String
+  rider           User            @relation("RiderBreakdowns", fields: [riderId], references: [id])
+  mechanicId      String?
+  mechanic        Mechanic?       @relation("MechanicBreakdowns", fields: [mechanicId], references: [id])
+  latitude        Float
+  longitude       Float
+  locationAddress String?
+  vehicleInfo     String?
+  emergencyType   EmergencyType
+  status          BreakdownStatus @default(PENDING)
+  estimatedPrice  Float?
+  finalPrice      Float?
+  photos          Json            @default("[]")
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  completedAt     DateTime?
+
+  // Relations
+  chatMessages ChatMessage[]
+  payments     Payment[]
+  ratings      Rating[]
+
+  @@index([riderId])
+  @@index([mechanicId])
+  @@index([status])
+  @@index([latitude, longitude])
+}
+
+model SparePart {
+  id          String        @id @default(cuid())
+  workshopId  String
+  workshop    Workshop      @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  name        String
+  vehicleType String
+  brand       String
+  model       String?
+  condition   PartCondition
+  price       Float
+  marketPrice Float?
+  stock       Int           @default(0)
+  images      Json          @default("[]")
+  description String?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  orders PartOrder[]
+
+  @@index([workshopId])
+  @@index([brand])
+  @@index([vehicleType])
+  @@index([condition])
+}
+
+model PartOrder {
+  id            String        @id @default(cuid())
+  displayId     String        @unique @default(cuid())
+  partId        String
+  part          SparePart     @relation(fields: [partId], references: [id])
+  buyerId       String
+  buyer         User          @relation("BuyerOrders", fields: [buyerId], references: [id])
+  workshopId    String
+  workshop      Workshop      @relation("WorkshopOrders", fields: [workshopId], references: [id])
+  quantity      Int           @default(1)
+  unitPrice     Float
+  subtotal      Float
+  gstAmount     Float         @default(0)
+  platformFee   Float         @default(0)
+  totalAmount   Float
+  orderStatus   OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+  shippingAddress String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  payments Payment[]
+  ratings  Rating[]
+
+  @@index([buyerId])
+  @@index([workshopId])
+  @@index([orderStatus])
+  @@index([paymentStatus])
+}
+
+model Payment {
+  id                String           @id @default(cuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id])
+  type              PaymentType
+  breakdownId       String?
+  breakdown         BreakdownRequest? @relation(fields: [breakdownId], references: [id])
+  orderId           String?
+  order             PartOrder?        @relation(fields: [orderId], references: [id])
+  amount            Float
+  gstAmount         Float            @default(0)
+  platformFee       Float            @default(0)
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  status            PaymentStatus    @default(PENDING)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([breakdownId])
+  @@index([orderId])
+  @@index([status])
+}
+
+model Rating {
+  id           String            @id @default(cuid())
+  fromUserId   String
+  fromUser     User              @relation("RatingsGiven", fields: [fromUserId], references: [id])
+  toUserId     String
+  toUser       User              @relation("RatingsReceived", fields: [toUserId], references: [id])
+  breakdownId  String?
+  breakdown    BreakdownRequest? @relation(fields: [breakdownId], references: [id])
+  orderId      String?
+  order        PartOrder?        @relation(fields: [orderId], references: [id])
+  stars        Int // 1-5
+  review       String?
+  createdAt    DateTime          @default(now())
+
+  @@index([toUserId])
+  @@index([breakdownId])
+  @@index([orderId])
+}
+
+model Dispute {
+  id          String          @id @default(cuid())
+  displayId   String          @unique @default(cuid())
+  raisedById  String
+  raisedBy    User            @relation(fields: [raisedById], references: [id])
+  relatedId   String // breakdownId or orderId
+  relatedType String // "BREAKDOWN" or "ORDER"
+  reason      String
+  description String
+  status      DisputeStatus   @default(OPEN)
+  priority    DisputePriority @default(MEDIUM)
+  resolution  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([raisedById])
+  @@index([status])
+  @@index([priority])
+}
+
+model ChatMessage {
+  id           String            @id @default(cuid())
+  breakdownId  String
+  breakdown    BreakdownRequest  @relation(fields: [breakdownId], references: [id], onDelete: Cascade)
+  senderId     String
+  sender       User              @relation(fields: [senderId], references: [id])
+  message      String
+  type         ChatMessageType   @default(TEXT)
+  createdAt    DateTime          @default(now())
+
+  @@index([breakdownId])
+  @@index([senderId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      NotificationType @default(SYSTEM)
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model PlatformConfig {
+  id                   String  @id @default("singleton")
+  platformName         String  @default("RepairAssist")
+  supportEmail         String  @default("support@repairassist.in")
+  supportPhone         String  @default("+91 1800-123-4567")
+  defaultLanguage      String  @default("en")
+  defaultCurrency      String  @default("INR")
+  serviceCommission    Float   @default(15)
+  partsCommission      Float   @default(10)
+  lateNightSurcharge   Float   @default(25)
+  lateNightEnabled     Boolean @default(true)
+  emergencySurcharge   Float   @default(30)
+  emergencyEnabled     Boolean @default(true)
+  minimumServiceFee    Float   @default(149)
+  mechanicRadiusKm     Float   @default(15)
+  autoApproveMechanics Boolean @default(false)
+  requireAadhaar       Boolean @default(true)
+  requirePAN           Boolean @default(true)
+  requireTradeLicense  Boolean @default(false)
+  requirePhotoID       Boolean @default(true)
+  kycProvider          String  @default("digilocker")
+  updatedAt            DateTime @updatedAt
+}

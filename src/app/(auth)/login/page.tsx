@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/hooks/use-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wrench,
@@ -39,8 +40,10 @@ export default function LoginPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const router = useRouter();
+  const { sendOtp: sendOtpApi, verifyOtp: verifyOtpApi } = useAuth();
 
   useEffect(() => {
     if (otpSent && otpRefs.current[0]) {
@@ -48,13 +51,18 @@ export default function LoginPage() {
     }
   }, [otpSent]);
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (phone.length < 10) return;
     setIsLoading(true);
-    setTimeout(() => {
+    setError("");
+    try {
+      await sendOtpApi(phone, role);
       setOtpSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send OTP");
+    } finally {
       setIsLoading(false);
-    }, 1200);
+    }
   };
 
   const handleOtpChange = (index: number, value: string) => {
@@ -78,14 +86,19 @@ export default function LoginPage() {
     }
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     const otpValue = otp.join("");
     if (otpValue.length !== 6) return;
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setError("");
+    try {
+      await verifyOtpApi(phone, otpValue, role);
       router.push("/dashboard");
-    }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to verify OTP");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -263,6 +276,17 @@ export default function LoginPage() {
             </motion.div>
           </AnimatePresence>
 
+          {/* Error message */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+            >
+              {error}
+            </motion.div>
+          )}
+
           {/* Phone Input */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -363,7 +387,11 @@ export default function LoginPage() {
                       <span className="text-muted-foreground">
                         Didn&apos;t receive OTP?
                       </span>
-                      <button className="text-primary hover:underline font-medium">
+                      <button
+                        className="text-primary hover:underline font-medium"
+                        onClick={handleSendOtp}
+                        disabled={isLoading}
+                      >
                         Resend OTP
                       </button>
                     </div>
@@ -400,11 +428,17 @@ export default function LoginPage() {
               variant="secondary"
               className="w-full gap-2"
               size="lg"
-              onClick={() => {
+              onClick={async () => {
                 setIsLoading(true);
-                setTimeout(() => {
+                setError("");
+                try {
+                  await sendOtpApi("9999999999", "admin");
+                  await verifyOtpApi("9999999999", "123456", "admin");
                   router.push("/dashboard");
-                }, 800);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Demo login failed");
+                  setIsLoading(false);
+                }
               }}
               disabled={isLoading}
             >

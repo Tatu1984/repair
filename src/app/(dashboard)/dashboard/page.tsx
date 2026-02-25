@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import {
   AlertTriangle,
   Wrench,
@@ -10,12 +11,12 @@ import {
   TrendingUp,
   TrendingDown,
   Star,
-  MapPin,
   UserPlus,
   Scale,
   FileDown,
   Settings,
   Clock,
+  RefreshCw,
 } from "lucide-react";
 import {
   LineChart,
@@ -30,14 +31,68 @@ import {
   Area,
   AreaChart,
 } from "recharts";
+import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAdminStats, useActiveBreakdowns } from "@/lib/hooks/use-admin";
+import { MapView } from "@/components/shared/map-view";
 
-// --- Mock Data ---
+// --- Helpers ---
 
+function formatEnumLabel(val: string) {
+  return val
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .toLowerCase()
+    .replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function timeAgo(date: string) {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function mapStatusToLabel(status: string): string {
+  switch (status) {
+    case "PENDING":
+    case "SEARCHING":
+      return "Pending";
+    case "ACCEPTED":
+    case "EN_ROUTE":
+    case "ARRIVED":
+    case "DIAGNOSING":
+    case "IN_PROGRESS":
+      return "Active";
+    case "COMPLETED":
+      return "Completed";
+    case "CANCELLED":
+      return "Cancelled";
+    default:
+      return formatEnumLabel(status);
+  }
+}
+
+// --- Static Chart Data ---
+
+// TODO: Replace with analytics API
 const breakdownData = [
   { day: "Mon", requests: 42 },
   { day: "Tue", requests: 58 },
@@ -48,6 +103,7 @@ const breakdownData = [
   { day: "Sun", requests: 61 },
 ];
 
+// TODO: Replace with analytics API
 const revenueData = [
   { category: "Labour", amount: 45000 },
   { category: "Parts", amount: 32000 },
@@ -56,22 +112,6 @@ const revenueData = [
   { category: "Subscription", amount: 15000 },
 ];
 
-const recentBreakdowns = [
-  { id: "BR-2401", rider: "Arjun Mehta", mechanic: "Ravi Sharma", type: "Flat Tyre", status: "Active", time: "12 min ago" },
-  { id: "BR-2402", rider: "Priya Singh", mechanic: "Suresh Kumar", type: "Engine Stall", status: "Completed", time: "25 min ago" },
-  { id: "BR-2403", rider: "Vikram Reddy", mechanic: "Pending", type: "Battery Dead", status: "Pending", time: "3 min ago" },
-  { id: "BR-2404", rider: "Neha Gupta", mechanic: "Deepak Yadav", type: "Chain Break", status: "Active", time: "18 min ago" },
-  { id: "BR-2405", rider: "Rohit Patel", mechanic: "Amit Tiwari", type: "Fuel Empty", status: "Completed", time: "45 min ago" },
-  { id: "BR-2406", rider: "Anjali Nair", mechanic: "Pending", type: "Brake Failure", status: "Pending", time: "1 min ago" },
-];
-
-const topMechanics = [
-  { name: "Ravi Sharma", rating: 4.9, jobs: 342, initials: "RS" },
-  { name: "Suresh Kumar", rating: 4.8, jobs: 298, initials: "SK" },
-  { name: "Deepak Yadav", rating: 4.7, jobs: 267, initials: "DY" },
-  { name: "Amit Tiwari", rating: 4.6, jobs: 234, initials: "AT" },
-  { name: "Manoj Verma", rating: 4.5, jobs: 201, initials: "MV" },
-];
 
 // --- Animated Number Counter ---
 
@@ -162,62 +202,146 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-// --- KPI Card ---
+// --- Skeleton Components ---
 
-const kpiCards = [
-  {
-    title: "Active Breakdowns",
-    value: 23,
-    trend: "+12%",
-    trendUp: true,
-    icon: AlertTriangle,
-    gradient: "from-orange-500/10 to-red-500/10 dark:from-orange-500/20 dark:to-red-500/20",
-    iconColor: "text-orange-600 dark:text-orange-400",
-  },
-  {
-    title: "Mechanics Online",
-    value: 147,
-    trend: "+5%",
-    trendUp: true,
-    icon: Wrench,
-    gradient: "from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20",
-    iconColor: "text-blue-600 dark:text-blue-400",
-  },
-  {
-    title: "Revenue Today",
-    value: 84500,
-    prefix: "\u20B9",
-    trend: "+18%",
-    trendUp: true,
-    icon: IndianRupee,
-    gradient: "from-green-500/10 to-emerald-500/10 dark:from-green-500/20 dark:to-emerald-500/20",
-    iconColor: "text-green-600 dark:text-green-400",
-  },
-  {
-    title: "Parts Sold",
-    value: 56,
-    trend: "-3%",
-    trendUp: false,
-    icon: Package,
-    gradient: "from-purple-500/10 to-pink-500/10 dark:from-purple-500/20 dark:to-pink-500/20",
-    iconColor: "text-purple-600 dark:text-purple-400",
-  },
-];
+function KpiCardSkeleton() {
+  return (
+    <Card className="relative overflow-hidden">
+      <CardContent className="relative pt-0">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-8 w-20" />
+          </div>
+          <Skeleton className="h-11 w-11 rounded-xl" />
+        </div>
+        <div className="mt-2 flex items-center gap-1">
+          <Skeleton className="h-3.5 w-16" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
-// --- Heatmap Regions ---
+function TableRowSkeleton() {
+  return (
+    <tr className="border-b last:border-0">
+      <td className="py-3 pr-4"><Skeleton className="h-4 w-16" /></td>
+      <td className="py-3 pr-4"><Skeleton className="h-4 w-24" /></td>
+      <td className="py-3 pr-4"><Skeleton className="h-4 w-24" /></td>
+      <td className="py-3 pr-4"><Skeleton className="h-4 w-20" /></td>
+      <td className="py-3 pr-4"><Skeleton className="h-5 w-16 rounded-full" /></td>
+      <td className="py-3"><Skeleton className="h-4 w-16" /></td>
+    </tr>
+  );
+}
 
-const heatmapRegions: { name: string; x: string; y: string; intensity: "high" | "medium" | "low" }[] = [
-  { name: "Connaught Place", x: "35%", y: "25%", intensity: "high" },
-  { name: "Andheri", x: "55%", y: "45%", intensity: "high" },
-  { name: "Koramangala", x: "65%", y: "65%", intensity: "medium" },
-  { name: "Banjara Hills", x: "45%", y: "55%", intensity: "medium" },
-  { name: "Salt Lake", x: "78%", y: "30%", intensity: "low" },
-  { name: "Aundh", x: "30%", y: "50%", intensity: "low" },
-];
+function MechanicSkeleton() {
+  return (
+    <div className="flex items-center gap-3">
+      <Skeleton className="h-4 w-4" />
+      <Skeleton className="h-8 w-8 rounded-full" />
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-3 w-24" />
+      </div>
+      <div className="text-right space-y-1">
+        <Skeleton className="h-4 w-8 ml-auto" />
+        <Skeleton className="h-3 w-6 ml-auto" />
+      </div>
+    </div>
+  );
+}
 
 // --- Page Component ---
 
 export default function DashboardPage() {
+  const {
+    data: adminData,
+    isLoading: isStatsLoading,
+    isError: isStatsError,
+    error: statsError,
+    refetch: refetchStats,
+  } = useAdminStats();
+
+  // Show error toasts
+  useEffect(() => {
+    if (isStatsError && statsError) {
+      toast.error("Failed to load dashboard data", {
+        description: statsError.message || "Please try again later.",
+      });
+    }
+  }, [isStatsError, statsError]);
+
+  const {
+    data: activeBreakdownData,
+    isLoading: isActiveLoading,
+  } = useActiveBreakdowns();
+
+  const stats = adminData?.stats;
+  const recentBreakdowns = adminData?.recentBreakdowns ?? [];
+  const topMechanics = adminData?.topMechanics ?? [];
+
+  // Build map markers from active breakdowns
+  const activeBreakdowns = (activeBreakdownData as { breakdowns?: Array<{
+    id: string;
+    latitude: number;
+    longitude: number;
+    emergencyType: string;
+    status: string;
+    rider?: { name: string };
+    locationAddress?: string;
+  }> })?.breakdowns ?? [];
+
+  const mapMarkers = activeBreakdowns.map((bd) => ({
+    id: bd.id,
+    lat: bd.latitude,
+    lng: bd.longitude,
+    label: `${formatEnumLabel(bd.emergencyType)} — ${bd.rider?.name ?? "Unknown"} (${formatEnumLabel(bd.status)})`,
+    type: "breakdown" as const,
+  }));
+
+  // Build KPI cards from real API data
+  const kpiCards = [
+    {
+      title: "Active Breakdowns",
+      value: stats?.activeBreakdowns ?? 0,
+      trend: `+${stats?.pendingBreakdowns ?? 0} pending`,
+      trendUp: true,
+      icon: AlertTriangle,
+      gradient: "from-orange-500/10 to-red-500/10 dark:from-orange-500/20 dark:to-red-500/20",
+      iconColor: "text-orange-600 dark:text-orange-400",
+    },
+    {
+      title: "Mechanics Online",
+      value: stats?.onlineMechanics ?? 0,
+      trend: `+${stats?.totalMechanics ?? 0} total`,
+      trendUp: true,
+      icon: Wrench,
+      gradient: "from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20",
+      iconColor: "text-blue-600 dark:text-blue-400",
+    },
+    {
+      title: "Revenue Today",
+      value: stats?.revenueToday ?? 0,
+      prefix: "\u20B9",
+      trend: `+${stats?.completedToday ?? 0} completed`,
+      trendUp: true,
+      icon: IndianRupee,
+      gradient: "from-green-500/10 to-emerald-500/10 dark:from-green-500/20 dark:to-emerald-500/20",
+      iconColor: "text-green-600 dark:text-green-400",
+    },
+    {
+      title: "Parts Sold",
+      value: stats?.totalParts ?? 0,
+      trend: `+${stats?.totalOrders ?? 0} orders`,
+      trendUp: true,
+      icon: Package,
+      gradient: "from-purple-500/10 to-pink-500/10 dark:from-purple-500/20 dark:to-pink-500/20",
+      iconColor: "text-purple-600 dark:text-purple-400",
+    },
+  ];
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -230,6 +354,25 @@ export default function DashboardPage() {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
   };
+
+  // Error state
+  if (isStatsError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+          <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
+        </div>
+        <h2 className="text-lg font-semibold">Failed to load dashboard</h2>
+        <p className="text-sm text-muted-foreground text-center max-w-md">
+          {statsError?.message || "Something went wrong while fetching dashboard data. Please try again."}
+        </p>
+        <Button onClick={() => refetchStats()} variant="outline" className="gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -248,48 +391,53 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiCards.map((kpi, index) => (
-          <motion.div key={kpi.title} variants={itemVariants}>
-            <Card className="relative overflow-hidden hover:shadow-md transition-shadow cursor-default group">
-              <div className={`absolute inset-0 bg-gradient-to-br ${kpi.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
-              <CardContent className="relative pt-0">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground font-medium">
-                      {kpi.title}
-                    </p>
-                    <p className="text-2xl font-bold tracking-tight">
-                      <AnimatedCounter
-                        target={kpi.value}
-                        prefix={kpi.prefix || ""}
-                      />
-                    </p>
-                  </div>
-                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-background/80 shadow-sm ${kpi.iconColor}`}>
-                    <kpi.icon className="h-5 w-5" />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center gap-1">
-                  {kpi.trendUp ? (
-                    <TrendingUp className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <TrendingDown className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-                  )}
-                  <span
-                    className={`text-xs font-medium ${
-                      kpi.trendUp
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-red-600 dark:text-red-400"
-                    }`}
-                  >
-                    {kpi.trend}
-                  </span>
-                  <span className="text-xs text-muted-foreground">vs last week</span>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+        {isStatsLoading
+          ? Array.from({ length: 4 }).map((_, index) => (
+              <motion.div key={`kpi-skeleton-${index}`} variants={itemVariants}>
+                <KpiCardSkeleton />
+              </motion.div>
+            ))
+          : kpiCards.map((kpi) => (
+              <motion.div key={kpi.title} variants={itemVariants}>
+                <Card className="relative overflow-hidden hover:shadow-md transition-shadow cursor-default group">
+                  <div className={`absolute inset-0 bg-gradient-to-br ${kpi.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
+                  <CardContent className="relative pt-0">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground font-medium">
+                          {kpi.title}
+                        </p>
+                        <p className="text-2xl font-bold tracking-tight">
+                          <AnimatedCounter
+                            target={kpi.value}
+                            prefix={kpi.prefix || ""}
+                          />
+                        </p>
+                      </div>
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-background/80 shadow-sm ${kpi.iconColor}`}>
+                        <kpi.icon className="h-5 w-5" />
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1">
+                      {kpi.trendUp ? (
+                        <TrendingUp className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <TrendingDown className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                      )}
+                      <span
+                        className={`text-xs font-medium ${
+                          kpi.trendUp
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {kpi.trend}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
       </div>
 
       {/* Charts Row */}
@@ -415,28 +563,41 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {recentBreakdowns.map((bd) => (
-                      <tr
-                        key={bd.id}
-                        className="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="py-3 pr-4 font-mono text-xs font-medium">
-                          {bd.id}
-                        </td>
-                        <td className="py-3 pr-4">{bd.rider}</td>
-                        <td className="py-3 pr-4 text-muted-foreground">
-                          {bd.mechanic}
-                        </td>
-                        <td className="py-3 pr-4">{bd.type}</td>
-                        <td className="py-3 pr-4">
-                          <StatusBadge status={bd.status} />
-                        </td>
-                        <td className="py-3 text-muted-foreground text-xs flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {bd.time}
-                        </td>
-                      </tr>
-                    ))}
+                    {isStatsLoading
+                      ? Array.from({ length: 6 }).map((_, index) => (
+                          <TableRowSkeleton key={`table-skeleton-${index}`} />
+                        ))
+                      : recentBreakdowns.map((bd: {
+                          id: string;
+                          displayId: string;
+                          rider: { name: string };
+                          mechanic: { user: { name: string } } | null;
+                          mechanicId: string | null;
+                          emergencyType: string;
+                          status: string;
+                          createdAt: string;
+                        }) => (
+                          <tr
+                            key={bd.id}
+                            className="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                          >
+                            <td className="py-3 pr-4 font-mono text-xs font-medium">
+                              {bd.displayId}
+                            </td>
+                            <td className="py-3 pr-4">{bd.rider?.name ?? "Unknown"}</td>
+                            <td className="py-3 pr-4 text-muted-foreground">
+                              {bd.mechanic?.user?.name ?? "Pending"}
+                            </td>
+                            <td className="py-3 pr-4">{formatEnumLabel(bd.emergencyType)}</td>
+                            <td className="py-3 pr-4">
+                              <StatusBadge status={mapStatusToLabel(bd.status)} />
+                            </td>
+                            <td className="py-3 text-muted-foreground text-xs flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {timeAgo(bd.createdAt)}
+                            </td>
+                          </tr>
+                        ))}
                   </tbody>
                 </table>
               </div>
@@ -453,31 +614,46 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {topMechanics.map((mech, index) => (
-                  <div
-                    key={mech.name}
-                    className="flex items-center gap-3 group"
-                  >
-                    <span className="text-xs font-bold text-muted-foreground w-4">
-                      {index + 1}
-                    </span>
-                    <Avatar size="default">
-                      <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-                        {mech.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {mech.name}
-                      </p>
-                      <StarRating rating={mech.rating} />
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-semibold">{mech.jobs}</p>
-                      <p className="text-xs text-muted-foreground">jobs</p>
-                    </div>
-                  </div>
-                ))}
+                {isStatsLoading
+                  ? Array.from({ length: 5 }).map((_, index) => (
+                      <MechanicSkeleton key={`mech-skeleton-${index}`} />
+                    ))
+                  : topMechanics.map(
+                      (
+                        mech: {
+                          id: string;
+                          userId: string;
+                          user: { name: string; avatarUrl: string | null };
+                          rating: number;
+                          totalJobs: number;
+                        },
+                        index: number
+                      ) => (
+                        <div
+                          key={mech.id}
+                          className="flex items-center gap-3 group"
+                        >
+                          <span className="text-xs font-bold text-muted-foreground w-4">
+                            {index + 1}
+                          </span>
+                          <Avatar size="default">
+                            <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+                              {getInitials(mech.user.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {mech.user.name}
+                            </p>
+                            <StarRating rating={mech.rating} />
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold">{mech.totalJobs}</p>
+                            <p className="text-xs text-muted-foreground">jobs</p>
+                          </div>
+                        </div>
+                      )
+                    )}
               </div>
             </CardContent>
           </Card>
@@ -486,74 +662,35 @@ export default function DashboardPage() {
 
       {/* Heatmap + Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Breakdown Heatmap Placeholder */}
+        {/* Live Breakdown Map */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Breakdown Heatmap</CardTitle>
-              <CardDescription>Breakdown density across major Indian cities</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Live Breakdown Map</CardTitle>
+                <CardDescription>
+                  {isActiveLoading
+                    ? "Loading active breakdowns..."
+                    : `${mapMarkers.length} active breakdown${mapMarkers.length !== 1 ? "s" : ""} right now`}
+                </CardDescription>
+              </div>
+              {!isActiveLoading && mapMarkers.length > 0 && (
+                <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 animate-pulse">
+                  <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
+                  Live
+                </Badge>
+              )}
             </CardHeader>
             <CardContent>
-              <div className="relative h-[280px] rounded-lg bg-muted/30 border border-dashed overflow-hidden">
-                {/* Mock map background */}
-                <div className="absolute inset-0 opacity-20">
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-[size:20px_20px]" />
-                </div>
-
-                {/* Heatmap blobs */}
-                {heatmapRegions.map((region) => {
-                  const sizeMap = { high: "w-20 h-20", medium: "w-14 h-14", low: "w-10 h-10" };
-                  const colorMap = {
-                    high: "bg-red-500/30 border-red-500/40",
-                    medium: "bg-yellow-500/30 border-yellow-500/40",
-                    low: "bg-green-500/30 border-green-500/40",
-                  };
-                  return (
-                    <motion.div
-                      key={region.name}
-                      animate={{ scale: [1, 1.1, 1], opacity: [0.6, 0.9, 0.6] }}
-                      transition={{ duration: 3, repeat: Infinity, delay: Math.random() * 2 }}
-                      className={`absolute rounded-full blur-sm border ${sizeMap[region.intensity]} ${colorMap[region.intensity]}`}
-                      style={{
-                        left: region.x,
-                        top: region.y,
-                        transform: "translate(-50%, -50%)",
-                      }}
-                    />
-                  );
-                })}
-
-                {/* Labels */}
-                {heatmapRegions.map((region) => (
-                  <div
-                    key={`label-${region.name}`}
-                    className="absolute flex items-center gap-1"
-                    style={{
-                      left: region.x,
-                      top: region.y,
-                      transform: "translate(-50%, -50%)",
-                    }}
-                  >
-                    <MapPin className="h-3.5 w-3.5 text-foreground/70" />
-                    <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">
-                      {region.name}
-                    </span>
-                  </div>
-                ))}
-
-                {/* Legend */}
-                <div className="absolute bottom-3 right-3 flex items-center gap-3 bg-background/80 backdrop-blur-sm rounded-md px-3 py-1.5 border text-xs">
-                  <span className="flex items-center gap-1">
-                    <span className="h-2.5 w-2.5 rounded-full bg-red-500/60" /> High
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" /> Medium
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="h-2.5 w-2.5 rounded-full bg-green-500/60" /> Low
-                  </span>
-                </div>
-              </div>
+              {isActiveLoading ? (
+                <Skeleton className="h-[320px] w-full rounded-lg" />
+              ) : (
+                <MapView
+                  markers={mapMarkers}
+                  height="320px"
+                  zoom={mapMarkers.length > 0 ? 5 : 5}
+                />
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -567,30 +704,38 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 gap-3">
-                <Button variant="outline" className="justify-start h-11 gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
-                    <UserPlus className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <span className="font-medium">Add Mechanic</span>
-                </Button>
-                <Button variant="outline" className="justify-start h-11 gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10">
-                    <Scale className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                  </div>
-                  <span className="font-medium">View Disputes</span>
-                </Button>
-                <Button variant="outline" className="justify-start h-11 gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
-                    <FileDown className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  </div>
-                  <span className="font-medium">Export Report</span>
-                </Button>
-                <Button variant="outline" className="justify-start h-11 gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
-                    <Settings className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <span className="font-medium">Platform Settings</span>
-                </Button>
+                <Link href="/mechanics/new">
+                  <Button variant="outline" className="w-full justify-start h-11 gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+                      <UserPlus className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <span className="font-medium">Add Mechanic</span>
+                  </Button>
+                </Link>
+                <Link href="/disputes">
+                  <Button variant="outline" className="w-full justify-start h-11 gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10">
+                      <Scale className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <span className="font-medium">View Disputes</span>
+                  </Button>
+                </Link>
+                <Link href="/reports">
+                  <Button variant="outline" className="w-full justify-start h-11 gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
+                      <FileDown className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <span className="font-medium">Export Report</span>
+                  </Button>
+                </Link>
+                <Link href="/settings">
+                  <Button variant="outline" className="w-full justify-start h-11 gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
+                      <Settings className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <span className="font-medium">Platform Settings</span>
+                  </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   LogOut,
@@ -11,6 +12,8 @@ import {
   Sun,
   User,
 } from "lucide-react";
+import { useAuth } from "@/lib/hooks/use-auth";
+import { useNotifications } from "@/lib/hooks/use-notifications";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +39,12 @@ interface HeaderProps {
 
 export function Header({ onMobileMenuToggle }: HeaderProps) {
   const { theme, setTheme } = useTheme();
+  const { user, logout } = useAuth();
+  const { data: notifData } = useNotifications();
+  const router = useRouter();
+  const unreadCount = (notifData as { unreadCount?: number } | undefined)?.unreadCount ?? 0;
+  const displayName = user?.name || user?.role || "User";
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
     <header className="bg-background/80 border-border sticky top-0 z-40 flex h-16 items-center gap-4 border-b px-4 backdrop-blur-sm md:px-6">
@@ -68,12 +77,14 @@ export function Header({ onMobileMenuToggle }: HeaderProps) {
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="size-5" />
-          <Badge
-            variant="destructive"
-            className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center p-0 text-[10px]"
-          >
-            5
-          </Badge>
+          {unreadCount > 0 && (
+            <Badge
+              variant="destructive"
+              className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center p-0 text-[10px]"
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </Badge>
+          )}
           <span className="sr-only">Notifications</span>
         </Button>
 
@@ -98,20 +109,20 @@ export function Header({ onMobileMenuToggle }: HeaderProps) {
               className="relative h-9 gap-2 px-2"
             >
               <Avatar size="sm">
-                <AvatarImage src="/avatars/admin.png" alt="Admin" />
-                <AvatarFallback>AD</AvatarFallback>
+                <AvatarImage src={user?.avatarUrl || ""} alt={displayName} />
+                <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
               <span className="hidden text-sm font-medium md:inline-block">
-                Admin User
+                {displayName}
               </span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col gap-1">
-                <p className="text-sm font-medium leading-none">Admin User</p>
+                <p className="text-sm font-medium leading-none">{displayName}</p>
                 <p className="text-muted-foreground text-xs leading-none">
-                  admin@repairassist.com
+                  {user?.email || `+91 ${user?.phone || ""}`}
                 </p>
               </div>
             </DropdownMenuLabel>
@@ -121,13 +132,13 @@ export function Header({ onMobileMenuToggle }: HeaderProps) {
                 <User />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/settings")}>
                 <Settings />
                 Settings
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive">
+            <DropdownMenuItem variant="destructive" onClick={logout}>
               <LogOut />
               Log out
             </DropdownMenuItem>
