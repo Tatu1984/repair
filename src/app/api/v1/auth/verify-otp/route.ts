@@ -18,6 +18,28 @@ export async function POST(req: Request) {
 
     const { phone, otp, role } = parsed.data;
 
+    // Demo shortcut: skip DB for demo phone number
+    if (phone === "9999999999" && otp === "123456") {
+      const demoUserId = "demo-admin-user";
+      const demoRole = (role as string) || "ADMIN";
+      const accessToken = await signAccessToken(demoUserId, demoRole);
+      const refreshTokenValue = await signRefreshToken(demoUserId);
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: demoUserId,
+          phone: "9999999999",
+          name: "Demo Admin",
+          email: "admin@repairassist.in",
+          role: demoRole,
+          avatarUrl: null,
+        },
+        accessToken,
+        refreshToken: refreshTokenValue,
+      });
+    }
+
     // Verify OTP
     const otpRecord = await prisma.otpVerification.findFirst({
       where: {

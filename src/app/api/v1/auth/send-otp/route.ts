@@ -14,7 +14,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const { phone, role } = parsed.data;
+    const { phone } = parsed.data;
+
+    // Demo shortcut: skip DB for demo phone number
+    if (phone === "9999999999") {
+      return NextResponse.json({
+        success: true,
+        message: `OTP sent to +91 ${phone}`,
+        ...(process.env.NODE_ENV === "development" && { otp: "123456" }),
+      });
+    }
 
     // Mock OTP: always 123456
     const otp = "123456";
@@ -27,7 +36,7 @@ export async function POST(req: Request) {
 
     // Create new OTP record
     await prisma.otpVerification.create({
-      data: { phone, otp, role, expiresAt },
+      data: { phone, otp, role: parsed.data.role, expiresAt },
     });
 
     return NextResponse.json({
