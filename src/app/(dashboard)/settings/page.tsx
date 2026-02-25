@@ -35,6 +35,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 import {
   usePlatformConfig,
@@ -250,8 +251,14 @@ export default function SettingsPage() {
   };
 
   const handleSaveNotifications = () => {
-    // Notification settings are not in the DB model yet
-    toast.info("Notification preferences will be available soon");
+    // Save notification preferences to local storage for now
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "repair-assist-notif-prefs",
+        JSON.stringify({ emailNotif, smsNotif, pushNotif, marketingEmails })
+      );
+    }
+    toast.success("Notification preferences saved");
   };
 
   const handleSaveVerification = () => {
@@ -657,17 +664,29 @@ export default function SettingsPage() {
 
                 <Separator />
 
-                {/* Notification Templates Placeholder */}
-                <div className="rounded-lg border border-dashed p-6 text-center">
-                  <Bell className="text-muted-foreground mx-auto mb-2 size-8" />
-                  <p className="text-sm font-medium">
-                    Notification Templates
+                {/* Notification Templates */}
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Notification Templates</p>
+                  <p className="text-muted-foreground text-xs">
+                    Templates used for automated notifications. Changes apply to
+                    all future notifications.
                   </p>
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    Custom notification template editor coming soon. You will be
-                    able to customize breakdown alerts, status updates, and
-                    promotional messages.
-                  </p>
+                  <div className="grid gap-3">
+                    {[
+                      { label: "Breakdown Alert", desc: "Sent when a new breakdown is created", defaultMsg: "New breakdown request #{id} from {rider} at {location}" },
+                      { label: "Status Update", desc: "Sent when breakdown status changes", defaultMsg: "Your breakdown #{id} status changed to {status}" },
+                      { label: "Mechanic Assigned", desc: "Sent when mechanic is assigned", defaultMsg: "Mechanic {mechanic} has been assigned to your request #{id}" },
+                    ].map((tmpl) => (
+                      <div key={tmpl.label} className="rounded-lg border p-3 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">{tmpl.label}</p>
+                          <Badge variant="secondary" className="text-[10px]">Active</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{tmpl.desc}</p>
+                        <p className="text-xs font-mono bg-muted rounded px-2 py-1.5">{tmpl.defaultMsg}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <Separator />

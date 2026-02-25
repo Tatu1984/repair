@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   Filter,
@@ -15,6 +15,11 @@ import {
   Activity,
   MapPin,
   RefreshCw,
+  X,
+  Phone,
+  User,
+  Wrench,
+  IndianRupee,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,7 +36,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useBreakdowns } from "@/lib/hooks/use-breakdowns";
+import { useBreakdowns, useBreakdownDetail, useUpdateBreakdownStatus } from "@/lib/hooks/use-breakdowns";
 
 // --- Helpers ---
 
@@ -174,12 +179,178 @@ function SkeletonRow() {
   );
 }
 
+// --- Breakdown Detail Modal ---
+
+function BreakdownDetailModal({
+  breakdownId,
+  onClose,
+}: {
+  breakdownId: string;
+  onClose: () => void;
+}) {
+  const { data, isLoading } = useBreakdownDetail(breakdownId);
+  const updateStatus = useUpdateBreakdownStatus();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bd = data as any;
+
+  const handleStatusUpdate = (newStatus: string, label: string) => {
+    updateStatus.mutate(
+      { id: breakdownId, status: newStatus },
+      {
+        onSuccess: () => toast.success(`Breakdown ${label}`),
+        onError: (err) => toast.error(err.message),
+      }
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border bg-background p-6 shadow-xl mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <h2 className="text-lg font-semibold">Breakdown Details</h2>
+
+        {isLoading ? (
+          <div className="mt-4 space-y-3">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        ) : bd ? (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm font-semibold">{bd.displayId}</span>
+              <StatusBadge status={getDisplayStatus(bd.status)} />
+            </div>
+
+            <Separator />
+
+            {/* Rider Info */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <User className="h-4 w-4" /> Rider
+              </h3>
+              <div className="rounded-lg border p-3 space-y-1 text-sm">
+                <p className="font-medium">{bd.rider?.name || "Unknown"}</p>
+                {bd.rider?.phone && (
+                  <p className="text-muted-foreground flex items-center gap-1">
+                    <Phone className="h-3 w-3" /> +91 {bd.rider.phone}
+                  </p>
+                )}
+                <p className="text-muted-foreground">{bd.vehicleInfo}</p>
+              </div>
+            </div>
+
+            {/* Emergency Details */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" /> Emergency
+              </h3>
+              <div className="rounded-lg border p-3 space-y-1 text-sm">
+                <EmergencyBadge type={formatEnumLabel(bd.emergencyType)} />
+                {bd.description && (
+                  <p className="text-muted-foreground mt-2">{bd.description}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Location */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <MapPin className="h-4 w-4" /> Location
+              </h3>
+              <p className="text-sm text-muted-foreground">{bd.locationAddress}</p>
+            </div>
+
+            {/* Mechanic Info */}
+            {bd.mechanic && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Wrench className="h-4 w-4" /> Assigned Mechanic
+                </h3>
+                <div className="rounded-lg border p-3 space-y-1 text-sm">
+                  <p className="font-medium">{bd.mechanic.user?.name || "Unknown"}</p>
+                  {bd.mechanic.user?.phone && (
+                    <p className="text-muted-foreground flex items-center gap-1">
+                      <Phone className="h-3 w-3" /> +91 {bd.mechanic.user.phone}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Estimate / Cost */}
+            {(bd.estimatedCost || bd.finalCost) && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <IndianRupee className="h-4 w-4" /> Cost
+                </h3>
+                <div className="rounded-lg border p-3 text-sm flex gap-6">
+                  {bd.estimatedCost && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Estimated</p>
+                      <p className="font-semibold">{"\u20B9"}{bd.estimatedCost}</p>
+                    </div>
+                  )}
+                  {bd.finalCost && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Final</p>
+                      <p className="font-semibold">{"\u20B9"}{bd.finalCost}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Timestamps */}
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>Created: {new Date(bd.createdAt).toLocaleString("en-IN")}</p>
+              {bd.updatedAt && bd.updatedAt !== bd.createdAt && (
+                <p>Updated: {new Date(bd.updatedAt).toLocaleString("en-IN")}</p>
+              )}
+            </div>
+
+            {/* Actions */}
+            {bd.status === "PENDING" && (
+              <div className="flex gap-2 pt-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => handleStatusUpdate("CANCELLED", "cancelled")}
+                  disabled={updateStatus.isPending}
+                >
+                  Cancel Breakdown
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">Breakdown not found.</p>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
 // --- Page Component ---
 
 export default function BreakdownsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedBreakdownId, setSelectedBreakdownId] = useState<string | null>(null);
   const itemsPerPage = 8;
 
   const { data, isLoading, isError, error, refetch } = useBreakdowns({
@@ -522,7 +693,7 @@ export default function BreakdownsPage() {
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                onClick={() => toast.info("Coming soon")}
+                                onClick={() => setSelectedBreakdownId(bd.id)}
                               >
                                 <Eye className="h-3.5 w-3.5 mr-1" />
                                 View
@@ -618,6 +789,15 @@ export default function BreakdownsPage() {
           )}
         </Card>
       </motion.div>
+      {/* Breakdown Detail Modal */}
+      <AnimatePresence>
+        {selectedBreakdownId && (
+          <BreakdownDetailModal
+            breakdownId={selectedBreakdownId}
+            onClose={() => setSelectedBreakdownId(null)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

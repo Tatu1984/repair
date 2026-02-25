@@ -27,7 +27,7 @@ async function refreshAuth(): Promise<boolean> {
     // Sync cookie with new access token
     if (typeof document !== "undefined") {
       const isSecure = window.location.protocol === "https:";
-      document.cookie = `access_token=${data.accessToken};path=/;max-age=${15 * 60};SameSite=Strict${isSecure ? ";Secure" : ""}`;
+      document.cookie = `access_token=${data.accessToken};path=/;max-age=${7 * 24 * 60 * 60};SameSite=Strict${isSecure ? ";Secure" : ""}`;
     }
     return true;
   } catch {

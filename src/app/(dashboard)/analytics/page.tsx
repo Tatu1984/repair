@@ -715,15 +715,73 @@ export default function AnalyticsPage() {
                 Download analytics data or share reports with your team.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Button variant="outline" className="gap-2">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    // Build CSV from stats data
+                    const rows = [
+                      ["Metric", "Value"],
+                      ["Total Breakdowns", String(stats?.totalBreakdowns ?? 0)],
+                      ["Avg Response Time", String(stats?.avgResponseTime ?? "N/A")],
+                      ["Total Revenue", String(stats?.totalRevenue ?? 0)],
+                      ["Active Mechanics", String(stats?.activeMechanics ?? 0)],
+                      ["Parts Sold", String(stats?.partsSold ?? 0)],
+                      ["Customer Satisfaction", String(stats?.customerSatisfaction ?? "N/A")],
+                    ];
+                    // Add city breakdown data
+                    if (cityBreakdowns.length > 0) {
+                      rows.push([], ["City", "Count", "Percentage"]);
+                      cityBreakdowns.forEach((c: { city: string; count: number; percentage: number }) => {
+                        rows.push([c.city, String(c.count), `${c.percentage}%`]);
+                      });
+                    }
+                    const csv = rows.map((r) => r.join(",")).join("\n");
+                    const blob = new Blob([csv], { type: "text/csv" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `repair-assist-analytics-${dateRange}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast.success("CSV downloaded");
+                  }}
+                >
                   <Download className="size-4" />
                   Download CSV
                 </Button>
-                <Button variant="outline" className="gap-2">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    // Print the page as PDF
+                    window.print();
+                    toast.success("Print dialog opened — save as PDF");
+                  }}
+                >
                   <FileText className="size-4" />
                   Download PDF
                 </Button>
-                <Button className="gap-2">
+                <Button
+                  className="gap-2"
+                  onClick={() => {
+                    // Copy a summary to clipboard for sharing
+                    const summary = [
+                      `RepairAssist Analytics Report (${dateRange})`,
+                      `Total Breakdowns: ${stats?.totalBreakdowns ?? 0}`,
+                      `Avg Response Time: ${stats?.avgResponseTime ?? "N/A"}`,
+                      `Total Revenue: ${stats?.totalRevenue != null ? formatRevenue(stats.totalRevenue) : "N/A"}`,
+                      `Active Mechanics: ${stats?.activeMechanics ?? 0}`,
+                      `Parts Sold: ${stats?.partsSold ?? 0}`,
+                      `Customer Satisfaction: ${stats?.customerSatisfaction ?? "N/A"}`,
+                    ].join("\n");
+                    navigator.clipboard.writeText(summary).then(() => {
+                      toast.success("Report summary copied to clipboard — paste into email");
+                    }).catch(() => {
+                      toast.error("Failed to copy to clipboard");
+                    });
+                  }}
+                >
                   <Mail className="size-4" />
                   Email Report
                 </Button>

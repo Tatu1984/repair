@@ -29,9 +29,11 @@ export function useAuth() {
 
     login(data.user, data.accessToken, data.refreshToken);
 
-    // Set cookie for middleware with security flags
+    // Set cookie for middleware — use 7-day max-age so the cookie outlives
+    // the short-lived JWT.  Middleware allows expired-but-present tokens
+    // through so the client-side refresh logic can kick in.
     const isSecure = window.location.protocol === "https:";
-    document.cookie = `access_token=${data.accessToken};path=/;max-age=${15 * 60};SameSite=Strict${isSecure ? ";Secure" : ""}`;
+    document.cookie = `access_token=${data.accessToken};path=/;max-age=${7 * 24 * 60 * 60};SameSite=Strict${isSecure ? ";Secure" : ""}`;
 
     return data;
   };

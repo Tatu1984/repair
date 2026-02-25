@@ -48,8 +48,16 @@ export async function middleware(request: NextRequest) {
     try {
       await jwtVerify(token, jwtSecret());
       return NextResponse.next();
-    } catch {
-      // Token invalid/expired — redirect to login
+    } catch (err: unknown) {
+      // If the token is expired (but structurally valid), let the page load
+      // so the client-side apiClient can refresh the token automatically.
+      const isExpired =
+        err instanceof Error &&
+        ("code" in err && (err as { code?: string }).code === "ERR_JWT_EXPIRED");
+      if (isExpired) {
+        return NextResponse.next();
+      }
+      // Token truly invalid / malformed — redirect to login
       const response = NextResponse.redirect(new URL("/login", request.url));
       response.cookies.delete("access_token");
       return response;

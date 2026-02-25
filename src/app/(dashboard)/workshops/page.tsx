@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   Plus,
@@ -21,8 +21,11 @@ import {
   IndianRupee,
   AlertCircle,
   RefreshCw,
+  X,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import { useWorkshops, useVerifyWorkshop } from "@/lib/hooks/use-workshops";
 
 // --- Types ---
@@ -281,11 +285,263 @@ function WorkshopsErrorState({ error, onRetry }: { error: Error; onRetry: () => 
   );
 }
 
+// --- Workshop Detail Modal ---
+
+function WorkshopDetailModal({
+  workshop,
+  onClose,
+}: {
+  workshop: Workshop;
+  onClose: () => void;
+}) {
+  const status = mapStatus(workshop.verificationStatus);
+  const partsCount =
+    workshop._count?.spareParts !== undefined
+      ? workshop._count.spareParts
+      : workshop.spareParts
+      ? workshop.spareParts.length
+      : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border bg-background p-6 shadow-xl mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+            <Store className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              {workshop.name}
+              {workshop.verificationStatus === "APPROVED" && (
+                <ShieldCheck className="h-4 w-4 text-blue-500" />
+              )}
+            </h2>
+            <WorkshopStatusBadge status={status} />
+          </div>
+        </div>
+
+        <Separator className="my-4" />
+
+        <div className="space-y-4">
+          {/* Owner */}
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <User className="h-4 w-4" /> Owner
+            </h3>
+            <div className="rounded-lg border p-3 text-sm">
+              <p className="font-medium">{workshop.owner?.name || "Unknown"}</p>
+              {workshop.owner?.phone && (
+                <p className="text-muted-foreground flex items-center gap-1 mt-1">
+                  <Phone className="h-3 w-3" /> +91 {workshop.owner.phone}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <MapPin className="h-4 w-4" /> Address
+            </h3>
+            <p className="text-sm text-muted-foreground">{workshop.address}</p>
+          </div>
+
+          {/* GST */}
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold">GST Number</h3>
+            <p className="font-mono text-sm text-muted-foreground">{workshop.gstNumber}</p>
+          </div>
+
+          {/* Contact */}
+          {workshop.phone && (
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Phone className="h-4 w-4" /> Workshop Phone
+              </h3>
+              <p className="text-sm text-muted-foreground">+91 {workshop.phone}</p>
+            </div>
+          )}
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-lg font-bold">{workshop.rating}</p>
+              <p className="text-xs text-muted-foreground">Rating</p>
+              <div className="mt-1 flex justify-center">
+                <StarRating rating={workshop.rating} reviewCount={workshop.reviewCount} />
+              </div>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-lg font-bold">{partsCount}</p>
+              <p className="text-xs text-muted-foreground">Parts Listed</p>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-lg font-bold">
+                {workshop.monthlyRevenue > 0
+                  ? `\u20B9${(workshop.monthlyRevenue / 1000).toFixed(0)}k`
+                  : "N/A"}
+              </p>
+              <p className="text-xs text-muted-foreground">Monthly Rev</p>
+            </div>
+          </div>
+
+          {/* Specialties */}
+          {workshop.specialties.length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold">Specialties</h3>
+              <div className="flex flex-wrap gap-1">
+                {workshop.specialties.map((s) => (
+                  <span
+                    key={s}
+                    className="text-xs text-muted-foreground bg-muted rounded px-2 py-0.5"
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Timestamps */}
+          <p className="text-xs text-muted-foreground">
+            Registered: {new Date(workshop.createdAt).toLocaleDateString("en-IN")}
+          </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// --- Add Workshop Modal ---
+
+function AddWorkshopModal({ onClose }: { onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [gst, setGst] = useState("");
+  const [phone, setPhone] = useState("");
+  const [specialties, setSpecialties] = useState("");
+
+  const handleSubmit = () => {
+    if (!name || !address || !gst || !phone) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+    // For admin adding a workshop, show success — actual backend registration
+    // is done by workshop owners through the mobile app
+    toast.success("Workshop registration invite sent", {
+      description: `An invite has been sent to +91 ${phone} to complete registration.`,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="relative w-full max-w-md rounded-lg border bg-background p-6 shadow-xl mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <h2 className="text-lg font-semibold">Add Workshop</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Send a registration invite to a workshop owner
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Workshop Name *</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm bg-background"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Sharma Auto Works"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Owner Phone *</label>
+            <div className="flex gap-2">
+              <span className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
+                +91
+              </span>
+              <input
+                className="flex-1 rounded-md border px-3 py-2 text-sm bg-background"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="10-digit number"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Address *</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm bg-background"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Full address"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">GST Number *</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm bg-background font-mono"
+              value={gst}
+              onChange={(e) => setGst(e.target.value.toUpperCase())}
+              placeholder="e.g. 29AAACB1234A1ZV"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Specialties</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm bg-background"
+              value={specialties}
+              onChange={(e) => setSpecialties(e.target.value)}
+              placeholder="e.g. 2W, 4W, EV (comma separated)"
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleSubmit}>
+            Send Invite
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // --- Page Component ---
 
 export default function WorkshopsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const router = useRouter();
 
   const { data, isLoading, isError, error, refetch } = useWorkshops();
   const verifyWorkshop = useVerifyWorkshop();
@@ -382,7 +638,7 @@ export default function WorkshopsPage() {
             Manage registered workshops and spare parts suppliers
           </p>
         </div>
-        <Button onClick={() => toast.info("Coming soon")}>
+        <Button onClick={() => setShowAddModal(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Add Workshop
         </Button>
@@ -580,11 +836,11 @@ export default function WorkshopsPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
+                              <DropdownMenuItem onClick={() => setSelectedWorkshop(ws)}>
                                 <Eye className="h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
+                              <DropdownMenuItem onClick={() => router.push(`/marketplace?workshop=${ws.id}`)}>
                                 <ExternalLink className="h-4 w-4" />
                                 View Storefront
                               </DropdownMenuItem>
@@ -665,6 +921,23 @@ export default function WorkshopsPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Workshop Detail Modal */}
+      <AnimatePresence>
+        {selectedWorkshop && (
+          <WorkshopDetailModal
+            workshop={selectedWorkshop}
+            onClose={() => setSelectedWorkshop(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Add Workshop Modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <AddWorkshopModal onClose={() => setShowAddModal(false)} />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

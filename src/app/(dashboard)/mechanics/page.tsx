@@ -23,6 +23,8 @@ import {
   Clock,
   AlertCircle,
   RefreshCw,
+  X,
+  IndianRupee,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -277,12 +279,253 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   );
 }
 
+// --- Mechanic Detail Modal ---
+
+function MechanicDetailModal({
+  mechanic,
+  onClose,
+}: {
+  mechanic: Mechanic;
+  onClose: () => void;
+}) {
+  const name = mechanic.user.name;
+  const initials = getInitials(name);
+  const verified = mechanic.verificationStatus === "APPROVED";
+  const displayStatus = mapStatus(mechanic.status);
+  const locationText =
+    mechanic.latitude != null && mechanic.longitude != null
+      ? `${mechanic.latitude.toFixed(4)}, ${mechanic.longitude.toFixed(4)}`
+      : "No location";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg border bg-background p-6 shadow-xl mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Avatar size="lg">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <span
+              className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card ${
+                mechanic.status === "ONLINE"
+                  ? "bg-green-500"
+                  : mechanic.status === "BUSY"
+                  ? "bg-orange-500"
+                  : "bg-gray-400"
+              }`}
+            />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              {name}
+              {verified && <ShieldCheck className="h-4 w-4 text-blue-500" />}
+            </h2>
+            <OnlineStatus status={displayStatus} />
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-4">
+          {/* Contact */}
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Phone className="h-4 w-4" />
+              +91 {mechanic.user.phone}
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              {locationText}
+            </div>
+          </div>
+
+          {/* Skills */}
+          <div>
+            <h3 className="text-sm font-semibold mb-2">Skills</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {mechanic.skills.map((skill) => (
+                <SkillBadge key={skill} skill={skill} />
+              ))}
+            </div>
+          </div>
+
+          {/* Rating */}
+          <div>
+            <h3 className="text-sm font-semibold mb-2">Rating</h3>
+            <StarRating rating={mechanic.rating} />
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-lg font-bold">{mechanic.totalJobs}</p>
+              <p className="text-xs text-muted-foreground">Total Jobs</p>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-lg font-bold">{mechanic.completedToday}</p>
+              <p className="text-xs text-muted-foreground">Today</p>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-lg font-bold flex items-center justify-center gap-0.5">
+                <IndianRupee className="h-3.5 w-3.5" />
+                {(mechanic.earnings / 1000).toFixed(1)}k
+              </p>
+              <p className="text-xs text-muted-foreground">Earnings</p>
+            </div>
+          </div>
+
+          {/* Verification */}
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold">Verification Status</h3>
+            <Badge
+              variant="secondary"
+              className={
+                verified
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                  : mechanic.verificationStatus === "PENDING"
+                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+              }
+            >
+              {mechanic.verificationStatus}
+            </Badge>
+          </div>
+
+          {/* Timestamps */}
+          <p className="text-xs text-muted-foreground">
+            Registered: {new Date(mechanic.createdAt).toLocaleDateString("en-IN")}
+          </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// --- Add Mechanic Modal ---
+
+function AddMechanicModal({ onClose }: { onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [skills, setSkills] = useState<string[]>([]);
+
+  const toggleSkill = (skill: string) => {
+    setSkills((prev) =>
+      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]
+    );
+  };
+
+  const handleSubmit = () => {
+    if (!name || !phone || skills.length === 0) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+    toast.success("Mechanic registration invite sent", {
+      description: `An invite has been sent to +91 ${phone} to complete registration.`,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="relative w-full max-w-md rounded-lg border bg-background p-6 shadow-xl mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <h2 className="text-lg font-semibold">Add Mechanic</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Send a registration invite to a mechanic
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Full Name *</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm bg-background"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Rajesh Kumar"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Phone *</label>
+            <div className="flex gap-2">
+              <span className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
+                +91
+              </span>
+              <input
+                className="flex-1 rounded-md border px-3 py-2 text-sm bg-background"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="10-digit number"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Skills *</label>
+            <div className="flex gap-2">
+              {["2W", "4W", "EV"].map((skill) => (
+                <button
+                  key={skill}
+                  type="button"
+                  className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                    skills.includes(skill)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background hover:bg-accent"
+                  }`}
+                  onClick={() => toggleSkill(skill)}
+                >
+                  {skill}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleSubmit}>
+            Send Invite
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // --- Page Component ---
 
 export default function MechanicsPage() {
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedMechanic, setSelectedMechanic] = useState<Mechanic | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const { data: mechanicsData, isLoading, isError, error, refetch } = useAllMechanics();
   const verifyMechanic = useVerifyMechanic();
@@ -366,7 +609,7 @@ export default function MechanicsPage() {
             Manage and monitor registered mechanics
           </p>
         </div>
-        <Button onClick={() => toast.info("Coming soon")}>
+        <Button onClick={() => setShowAddModal(true)}>
           <UserPlus className="h-4 w-4 mr-2" />
           Add Mechanic
         </Button>
@@ -506,7 +749,7 @@ export default function MechanicsPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
+                                <DropdownMenuItem onClick={() => setSelectedMechanic(mech)}>
                                   <Eye className="h-4 w-4" />
                                   View Profile
                                 </DropdownMenuItem>
@@ -677,7 +920,7 @@ export default function MechanicsPage() {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
+                                      <DropdownMenuItem onClick={() => setSelectedMechanic(mech)}>
                                         <Eye className="h-4 w-4" />
                                         View Profile
                                       </DropdownMenuItem>
@@ -732,6 +975,23 @@ export default function MechanicsPage() {
           )}
         </>
       )}
+
+      {/* Mechanic Detail Modal */}
+      <AnimatePresence>
+        {selectedMechanic && (
+          <MechanicDetailModal
+            mechanic={selectedMechanic}
+            onClose={() => setSelectedMechanic(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Add Mechanic Modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <AddMechanicModal onClose={() => setShowAddModal(false)} />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

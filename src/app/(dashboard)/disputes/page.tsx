@@ -15,6 +15,7 @@ import {
   TrendingUp,
   ArrowRight,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -170,6 +171,128 @@ function DisputesSkeleton() {
 
 // --- Component ---
 
+// --- View Dispute Detail Modal ---
+
+function ViewDisputeModal({
+  dispute,
+  onClose,
+}: {
+  dispute: any;
+  onClose: () => void;
+}) {
+  const displayStatus = statusMap[dispute.status] ?? dispute.status;
+  const displayPriority = priorityMap[dispute.priority] ?? dispute.priority;
+  const displayRole = roleMap[dispute.raisedBy?.role] ?? dispute.raisedBy?.role;
+  const displayRelatedType = relatedTypeMap[dispute.relatedType] ?? dispute.relatedType;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border bg-background p-6 shadow-xl mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <h2 className="text-lg font-semibold">Dispute Details</h2>
+
+        <div className="mt-4 space-y-4">
+          {/* ID & Status */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-sm font-semibold">{dispute.displayId}</span>
+            <Badge
+              className={`border-0 text-[10px] gap-1 ${
+                statusStyles[displayStatus as DisplayStatus] ?? ""
+              }`}
+            >
+              {statusIcons[displayStatus as DisplayStatus]}
+              {displayStatus}
+            </Badge>
+            <Badge
+              className={`border-0 text-[10px] ${
+                priorityStyles[displayPriority as DisplayPriority] ?? ""
+              }`}
+            >
+              {displayPriority} Priority
+            </Badge>
+          </div>
+
+          {/* Reason */}
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Reason</h3>
+            <p className="text-sm">{dispute.reason}</p>
+          </div>
+
+          {/* Description */}
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Description</h3>
+            <p className="text-sm text-muted-foreground">{dispute.description}</p>
+          </div>
+
+          {/* Raised By */}
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Raised By</h3>
+            <div className="flex items-center gap-2 text-sm">
+              <User className="size-4 text-muted-foreground" />
+              <span>{dispute.raisedBy?.name}</span>
+              <Badge
+                className={`border-0 text-[9px] px-1.5 py-0 ${
+                  roleStyles[displayRole as DisplayRole] ?? ""
+                }`}
+              >
+                {displayRole}
+              </Badge>
+            </div>
+            {dispute.raisedBy?.phone && (
+              <p className="text-xs text-muted-foreground mt-1 ml-6">
+                +91 {dispute.raisedBy.phone}
+              </p>
+            )}
+          </div>
+
+          {/* Related */}
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Related To</h3>
+            <p className="text-sm text-muted-foreground flex items-center gap-1">
+              <Link2 className="size-3.5" />
+              {displayRelatedType} #{dispute.relatedId}
+            </p>
+          </div>
+
+          {/* Resolution */}
+          {dispute.resolution && (
+            <div>
+              <h3 className="text-sm font-semibold mb-1">Resolution</h3>
+              <div className="rounded-lg border p-3 bg-green-50 dark:bg-green-900/10">
+                <p className="text-sm">{dispute.resolution}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Timestamps */}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p className="flex items-center gap-1">
+              <Calendar className="size-3" />
+              Created: {formatDate(dispute.createdAt)}
+            </p>
+            <p className="flex items-center gap-1">
+              <Clock className="size-3" />
+              Last Updated: {formatDate(dispute.updatedAt)}
+            </p>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // --- Resolution Modal ---
 
 function ResolveModal({
@@ -235,6 +358,7 @@ function ResolveModal({
 export default function DisputesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [resolvingDispute, setResolvingDispute] = useState<any | null>(null);
+  const [viewingDispute, setViewingDispute] = useState<any | null>(null);
 
   const {
     data,
@@ -551,7 +675,7 @@ export default function DisputesPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => toast.info("Coming soon")}
+                              onClick={() => setViewingDispute(dispute)}
                             >
                               View Details
                               <ArrowRight className="size-3.5" />
@@ -599,6 +723,16 @@ export default function DisputesPage() {
             onClose={() => setResolvingDispute(null)}
             onSubmit={handleResolveSubmit}
             isPending={resolveDispute.isPending}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* View Dispute Detail Modal */}
+      <AnimatePresence>
+        {viewingDispute && (
+          <ViewDisputeModal
+            dispute={viewingDispute}
+            onClose={() => setViewingDispute(null)}
           />
         )}
       </AnimatePresence>
