@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,8 +30,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSpareParts } from "@/lib/hooks/use-marketplace";
+import { useSpareParts, useCreatePart } from "@/lib/hooks/use-marketplace";
+import { useAuthStore } from "@/lib/store/auth-store";
 import { toast } from "sonner";
 
 // --- Constants ---
@@ -163,6 +174,295 @@ function ListSkeleton() {
   );
 }
 
+// --- Add Listing Modal ---
+
+const VEHICLE_TYPES = ["2-Wheeler", "4-Wheeler", "EV", "Truck"];
+const CONDITIONS = [
+  { value: "USED_GOOD", label: "Used - Good" },
+  { value: "REFURBISHED", label: "Refurbished" },
+  { value: "LIKE_NEW", label: "Like New" },
+  { value: "OEM_SURPLUS", label: "OEM Surplus" },
+];
+
+const emptyForm = {
+  name: "",
+  vehicleType: "",
+  brand: "",
+  model: "",
+  condition: "",
+  price: "",
+  marketPrice: "",
+  stock: "1",
+  description: "",
+};
+
+function AddListingModal({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const createPart = useCreatePart();
+
+  const set = (field: string, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = "Part name is required";
+    if (!form.vehicleType) e.vehicleType = "Vehicle type is required";
+    if (!form.brand.trim()) e.brand = "Brand is required";
+    if (!form.condition) e.condition = "Condition is required";
+    if (!form.price || Number(form.price) <= 0) e.price = "Valid price is required";
+    if (form.marketPrice && Number(form.marketPrice) <= 0) e.marketPrice = "Must be positive";
+    if (form.stock && (isNaN(Number(form.stock)) || Number(form.stock) < 0))
+      e.stock = "Must be 0 or more";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (!validate()) return;
+
+    const payload: Record<string, unknown> = {
+      name: form.name.trim(),
+      vehicleType: form.vehicleType,
+      brand: form.brand.trim(),
+      condition: form.condition,
+      price: Number(form.price),
+      stock: Number(form.stock) || 0,
+    };
+    if (form.model.trim()) payload.model = form.model.trim();
+    if (form.marketPrice) payload.marketPrice = Number(form.marketPrice);
+    if (form.description.trim()) payload.description = form.description.trim();
+
+    createPart.mutate(payload, {
+      onSuccess: () => {
+        toast.success("Listing created successfully");
+        setForm(emptyForm);
+        setErrors({});
+        onOpenChange(false);
+      },
+      onError: (err: Error) => {
+        toast.error(err.message || "Failed to create listing");
+      },
+    });
+  };
+
+  const handleClose = (isOpen: boolean) => {
+    if (!isOpen) {
+      setForm(emptyForm);
+      setErrors({});
+    }
+    onOpenChange(isOpen);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Add New Listing</DialogTitle>
+          <DialogDescription>
+            List a spare part on the marketplace for buyers to discover.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4 pt-2">
+          {/* Part Name */}
+          <div className="space-y-1.5">
+            <Label htmlFor="part-name">
+              Part Name <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="part-name"
+              placeholder="e.g. Brake Pad Set - Front"
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+            />
+            {errors.name && (
+              <p className="text-xs text-destructive">{errors.name}</p>
+            )}
+          </div>
+
+          {/* Vehicle Type + Brand */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>
+                Vehicle Type <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={form.vehicleType}
+                onValueChange={(v) => set("vehicleType", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VEHICLE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.vehicleType && (
+                <p className="text-xs text-destructive">{errors.vehicleType}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="part-brand">
+                Brand <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="part-brand"
+                placeholder="e.g. Honda"
+                value={form.brand}
+                onChange={(e) => set("brand", e.target.value)}
+              />
+              {errors.brand && (
+                <p className="text-xs text-destructive">{errors.brand}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Model + Condition */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="part-model">Model</Label>
+              <Input
+                id="part-model"
+                placeholder="e.g. Activa 6G"
+                value={form.model}
+                onChange={(e) => set("model", e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Condition <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={form.condition}
+                onValueChange={(v) => set("condition", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select condition" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONDITIONS.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.condition && (
+                <p className="text-xs text-destructive">{errors.condition}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Price + Market Price + Stock */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="part-price">
+                Price (₹) <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="part-price"
+                type="number"
+                min="1"
+                placeholder="0"
+                value={form.price}
+                onChange={(e) => set("price", e.target.value)}
+              />
+              {errors.price && (
+                <p className="text-xs text-destructive">{errors.price}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="part-market-price">Market Price (₹)</Label>
+              <Input
+                id="part-market-price"
+                type="number"
+                min="1"
+                placeholder="MRP"
+                value={form.marketPrice}
+                onChange={(e) => set("marketPrice", e.target.value)}
+              />
+              {errors.marketPrice && (
+                <p className="text-xs text-destructive">{errors.marketPrice}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="part-stock">Stock</Label>
+              <Input
+                id="part-stock"
+                type="number"
+                min="0"
+                placeholder="0"
+                value={form.stock}
+                onChange={(e) => set("stock", e.target.value)}
+              />
+              {errors.stock && (
+                <p className="text-xs text-destructive">{errors.stock}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label htmlFor="part-desc">Description</Label>
+            <Textarea
+              id="part-desc"
+              placeholder="Any additional details about the part..."
+              rows={3}
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => handleClose(false)}
+              disabled={createPart.isPending}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={createPart.isPending}>
+              {createPart.isPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Plus className="size-4" />
+                  Create Listing
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // --- Component ---
 
 export default function MarketplacePage() {
@@ -175,6 +475,9 @@ export default function MarketplacePage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [addListingOpen, setAddListingOpen] = useState(false);
+  const user = useAuthStore((s) => s.user);
+  const isWorkshop = user?.role === "WORKSHOP";
 
   const itemsPerPage = 6;
 
@@ -279,10 +582,12 @@ export default function MarketplacePage() {
             Browse and purchase quality spare parts from verified workshops
           </p>
         </div>
-        <Button className="w-fit">
-          <Plus className="size-4" />
-          Add Listing
-        </Button>
+        {isWorkshop && (
+          <Button className="w-fit" onClick={() => setAddListingOpen(true)}>
+            <Plus className="size-4" />
+            Add Listing
+          </Button>
+        )}
       </div>
 
       {/* Search and Filter Bar */}
@@ -754,6 +1059,9 @@ export default function MarketplacePage() {
           </Button>
         </div>
       )}
+
+      {/* Add Listing Modal */}
+      <AddListingModal open={addListingOpen} onOpenChange={setAddListingOpen} />
     </div>
   );
 }
