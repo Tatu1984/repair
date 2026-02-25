@@ -17,6 +17,9 @@ import {
   Settings,
   Clock,
   RefreshCw,
+  MapPin,
+  Radio,
+  CheckCircle2,
 } from "lucide-react";
 import {
   BarChart,
@@ -87,6 +90,48 @@ function mapStatusToLabel(status: string): string {
     default:
       return formatEnumLabel(status);
   }
+}
+
+// --- Zone Classification ---
+
+const ZONES = [
+  { name: "Mumbai", lat: 19.076, lng: 72.8777 },
+  { name: "Delhi NCR", lat: 28.6139, lng: 77.209 },
+  { name: "Bangalore", lat: 12.9716, lng: 77.5946 },
+  { name: "Chennai", lat: 13.0827, lng: 80.2707 },
+  { name: "Hyderabad", lat: 17.385, lng: 78.4867 },
+  { name: "Pune", lat: 18.5204, lng: 73.8567 },
+  { name: "Kolkata", lat: 22.5726, lng: 88.3639 },
+  { name: "Ahmedabad", lat: 23.0225, lng: 72.5714 },
+  { name: "Jaipur", lat: 26.9124, lng: 75.7873 },
+  { name: "Lucknow", lat: 26.8467, lng: 80.9462 },
+];
+
+function classifyZone(lat: number, lng: number): string {
+  let nearest = "Other";
+  let minDist = 150; // max 150km to belong to a zone
+  for (const zone of ZONES) {
+    const dLat = lat - zone.lat;
+    const dLng = lng - zone.lng;
+    // Approximate distance in km (1 degree ~ 111km)
+    const dist = Math.sqrt(dLat * dLat + dLng * dLng) * 111;
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = zone.name;
+    }
+  }
+  return nearest;
+}
+
+function getZoneCounts(breakdowns: Array<{ latitude: number; longitude: number }>): Array<{ zone: string; count: number }> {
+  const counts: Record<string, number> = {};
+  for (const bd of breakdowns) {
+    const zone = classifyZone(bd.latitude, bd.longitude);
+    counts[zone] = (counts[zone] || 0) + 1;
+  }
+  return Object.entries(counts)
+    .map(([zone, count]) => ({ zone, count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 // --- Static Chart Data ---
@@ -440,6 +485,108 @@ export default function DashboardPage() {
             ))}
       </div>
 
+      {/* Live SOS Map + Zone Summary */}
+      <motion.div variants={itemVariants}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Radio className="size-4 text-red-500" />
+                Live SOS Map
+              </CardTitle>
+              <CardDescription>
+                {isActiveLoading
+                  ? "Loading active breakdowns..."
+                  : `${mapMarkers.length} active SOS request${mapMarkers.length !== 1 ? "s" : ""} across all zones`}
+              </CardDescription>
+            </div>
+            {!isActiveLoading && mapMarkers.length > 0 && (
+              <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 animate-pulse">
+                <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
+                Live
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              {/* Map */}
+              <div className="lg:col-span-3">
+                {isActiveLoading ? (
+                  <Skeleton className="h-[420px] w-full rounded-lg" />
+                ) : isActiveError ? (
+                  <div className="flex h-[420px] items-center justify-center rounded-lg border border-dashed bg-muted/30">
+                    <div className="text-center">
+                      <AlertTriangle className="mx-auto h-8 w-8 text-muted-foreground/60 mb-2" />
+                      <p className="text-sm text-muted-foreground">Failed to load active breakdowns</p>
+                    </div>
+                  </div>
+                ) : (
+                  <MapView
+                    markers={mapMarkers}
+                    height="420px"
+                    zoom={5}
+                  />
+                )}
+              </div>
+
+              {/* Zone-wise Summary */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <MapPin className="size-4 text-primary" />
+                  Zone-wise Active SOS
+                </div>
+
+                {isActiveLoading ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                    ))}
+                  </div>
+                ) : (() => {
+                  const zoneCounts = getZoneCounts(activeBreakdowns);
+                  if (zoneCounts.length === 0) {
+                    return (
+                      <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/20 p-4">
+                        <CheckCircle2 className="size-8 text-green-500/60" />
+                        <p className="text-xs text-muted-foreground text-center">
+                          No active SOS requests
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="flex flex-col gap-2 max-h-[370px] overflow-y-auto pr-1">
+                      {zoneCounts.map((z) => (
+                        <div
+                          key={z.zone}
+                          className="flex items-center justify-between rounded-lg border bg-background p-3 transition-colors hover:bg-muted/30"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`size-2.5 rounded-full ${z.count >= 5 ? "bg-red-500 animate-pulse" : z.count >= 2 ? "bg-orange-500" : "bg-yellow-500"}`} />
+                            <span className="text-sm font-medium">{z.zone}</span>
+                          </div>
+                          <Badge
+                            className={`border-0 text-xs tabular-nums ${
+                              z.count >= 5
+                                ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                : z.count >= 2
+                                ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                                : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
+                            }`}
+                          >
+                            {z.count}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Line Chart */}
@@ -660,57 +807,15 @@ export default function DashboardPage() {
         </motion.div>
       </div>
 
-      {/* Heatmap + Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Live Breakdown Map */}
-        <motion.div variants={itemVariants} className="lg:col-span-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base">Live Breakdown Map</CardTitle>
-                <CardDescription>
-                  {isActiveLoading
-                    ? "Loading active breakdowns..."
-                    : `${mapMarkers.length} active breakdown${mapMarkers.length !== 1 ? "s" : ""} right now`}
-                </CardDescription>
-              </div>
-              {!isActiveLoading && mapMarkers.length > 0 && (
-                <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 animate-pulse">
-                  <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
-                  Live
-                </Badge>
-              )}
-            </CardHeader>
-            <CardContent>
-              {isActiveLoading ? (
-                <Skeleton className="h-[320px] w-full rounded-lg" />
-              ) : isActiveError ? (
-                <div className="flex h-[320px] items-center justify-center rounded-lg border border-dashed bg-muted/30">
-                  <div className="text-center">
-                    <AlertTriangle className="mx-auto h-8 w-8 text-muted-foreground/60 mb-2" />
-                    <p className="text-sm text-muted-foreground">Failed to load active breakdowns</p>
-                  </div>
-                </div>
-              ) : (
-                <MapView
-                  markers={mapMarkers}
-                  height="320px"
-                  zoom={5}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Quick Actions */}
-        <motion.div variants={itemVariants}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Quick Actions</CardTitle>
-              <CardDescription>Common administrative actions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 gap-3">
+      {/* Quick Actions */}
+      <motion.div variants={itemVariants}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Quick Actions</CardTitle>
+            <CardDescription>Common administrative actions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Link href="/mechanics">
                   <Button variant="outline" className="w-full justify-start h-11 gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
@@ -743,11 +848,10 @@ export default function DashboardPage() {
                     <span className="font-medium">Platform Settings</span>
                   </Button>
                 </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </motion.div>
   );
 }

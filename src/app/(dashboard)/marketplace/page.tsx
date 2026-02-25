@@ -41,7 +41,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSpareParts, useCreatePart } from "@/lib/hooks/use-marketplace";
-import { useAuthStore } from "@/lib/store/auth-store";
 import { toast } from "sonner";
 
 // --- Constants ---
@@ -476,8 +475,6 @@ export default function MarketplacePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [addListingOpen, setAddListingOpen] = useState(false);
-  const user = useAuthStore((s) => s.user);
-  const isWorkshop = user?.role === "WORKSHOP";
 
   const itemsPerPage = 6;
 
@@ -582,12 +579,10 @@ export default function MarketplacePage() {
             Browse and purchase quality spare parts from verified workshops
           </p>
         </div>
-        {isWorkshop && (
-          <Button className="w-fit" onClick={() => setAddListingOpen(true)}>
-            <Plus className="size-4" />
-            Add Listing
-          </Button>
-        )}
+        <Button className="w-fit" onClick={() => setAddListingOpen(true)}>
+          <Plus className="size-4" />
+          Add Listing
+        </Button>
       </div>
 
       {/* Search and Filter Bar */}
