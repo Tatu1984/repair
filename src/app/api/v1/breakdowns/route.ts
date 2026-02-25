@@ -17,9 +17,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Generate display ID
-    const count = await prisma.breakdownRequest.count();
-    const displayId = `BR-${String(count + 2401).padStart(4, "0")}`;
+    // Generate display ID (unique, race-condition-safe)
+    const displayId = `BR-${Date.now().toString(36).toUpperCase().slice(-5)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 
     const breakdown = await prisma.breakdownRequest.create({
       data: {
@@ -48,7 +47,14 @@ export async function GET(req: Request) {
 
     const where: Record<string, unknown> = {};
     if (status && status !== "all") {
-      where.status = status.toUpperCase();
+      const upperStatus = status.toUpperCase();
+      if (upperStatus === "ACTIVE") {
+        where.status = {
+          in: ["ACCEPTED", "EN_ROUTE", "ARRIVED", "DIAGNOSING", "IN_PROGRESS", "SEARCHING"],
+        };
+      } else {
+        where.status = upperStatus;
+      }
     }
     if (search) {
       where.OR = [
@@ -78,5 +84,5 @@ export async function GET(req: Request) {
       breakdowns,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-  });
+  }, ["ADMIN"]);
 }

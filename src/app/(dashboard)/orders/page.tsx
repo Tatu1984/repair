@@ -18,8 +18,11 @@ import {
   FileText,
   AlertCircle,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  XCircle,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -415,10 +418,14 @@ function OrderDetailPanel({
   order,
   open,
   onClose,
+  onUpdateStatus,
+  isUpdating,
 }: {
   order: MappedOrder | null;
   open: boolean;
-  onClose: () => void;
+  onClose: (open: boolean) => void;
+  onUpdateStatus: (id: string, status: string) => void;
+  isUpdating: boolean;
 }) {
   if (!order) return null;
 
@@ -559,6 +566,47 @@ function OrderDetailPanel({
               ))}
             </div>
           </div>
+
+          {/* Action Buttons */}
+          {order.orderStatus !== "Delivered" && order.orderStatus !== "Cancelled" && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="mb-3 text-sm font-semibold">Actions</h4>
+                <div className="flex flex-wrap gap-2">
+                  {(order.orderStatus === "Pending" || order.orderStatus === "Confirmed") && (
+                    <Button
+                      size="sm"
+                      onClick={() => onUpdateStatus(order.id, "SHIPPED")}
+                      disabled={isUpdating}
+                    >
+                      <Truck className="mr-1.5 size-3.5" />
+                      Mark Shipped
+                    </Button>
+                  )}
+                  {order.orderStatus === "Shipped" && (
+                    <Button
+                      size="sm"
+                      onClick={() => onUpdateStatus(order.id, "DELIVERED")}
+                      disabled={isUpdating}
+                    >
+                      <CheckCircle2 className="mr-1.5 size-3.5" />
+                      Mark Delivered
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => onUpdateStatus(order.id, "CANCELLED")}
+                    disabled={isUpdating}
+                  >
+                    <XCircle className="mr-1.5 size-3.5" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </SheetContent>
     </Sheet>
@@ -580,13 +628,37 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<MappedOrder | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const statusFilter = TAB_STATUS_MAP[activeTab];
   const { data, isLoading, isError, error, refetch } = useOrders({
     status: statusFilter,
-    page: 1,
+    page: currentPage,
   });
   const updateStatus = useUpdateOrderStatus();
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  };
+
+  const handleUpdateStatus = (id: string, orderStatus: string) => {
+    updateStatus.mutate(
+      { id, orderStatus },
+      {
+        onSuccess: () => {
+          toast.success("Order status updated");
+          setSheetOpen(false);
+          setSelectedOrder(null);
+        },
+        onError: (err: Error) => {
+          toast.error(err.message || "Failed to update status");
+        },
+      }
+    );
+  };
+
+  const totalPages = data?.pagination?.totalPages ?? 1;
 
   // Map API data to our internal format
   const mappedOrders: MappedOrder[] = (data?.orders || []).map(mapApiOrder);
@@ -615,7 +687,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="all">All Orders</TabsTrigger>
           <TabsTrigger value="pending">Pending</TabsTrigger>
@@ -776,6 +848,35 @@ export default function OrdersPage() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                    >
+                      <ChevronLeft className="mr-1 size-4" />
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                    >
+                      Next
+                      <ChevronRight className="ml-1 size-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </TabsContent>
@@ -785,7 +886,9 @@ export default function OrdersPage() {
       <OrderDetailPanel
         order={selectedOrder}
         open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
+        onClose={setSheetOpen}
+        onUpdateStatus={handleUpdateStatus}
+        isUpdating={updateStatus.isPending}
       />
     </div>
   );

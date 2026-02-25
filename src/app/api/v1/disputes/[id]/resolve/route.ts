@@ -25,12 +25,16 @@ export async function PUT(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const updateData: Record<string, unknown> = {
+      status: parsed.data.status,
+    };
+    if (parsed.data.resolution) {
+      updateData.resolution = parsed.data.resolution;
+    }
+
     const updated = await prisma.dispute.update({
       where: { id: dispute.id },
-      data: {
-        resolution: parsed.data.resolution,
-        status: parsed.data.status,
-      },
+      data: updateData,
     });
 
     return NextResponse.json({ dispute: updated });

@@ -1,11 +1,15 @@
 import { SignJWT, jwtVerify } from "jose";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "repair-assist-jwt-secret-key-2024"
-);
-const JWT_REFRESH_SECRET = new TextEncoder().encode(
-  process.env.JWT_REFRESH_SECRET || "repair-assist-refresh-secret-key-2024"
-);
+function getSecret(envVar: string, fallback: string): Uint8Array {
+  const secret = process.env[envVar];
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error(`${envVar} environment variable must be set in production`);
+  }
+  return new TextEncoder().encode(secret || fallback);
+}
+
+const JWT_SECRET = getSecret("JWT_SECRET", "repair-assist-jwt-secret-key-2024");
+const JWT_REFRESH_SECRET = getSecret("JWT_REFRESH_SECRET", "repair-assist-refresh-secret-key-2024");
 
 export interface JWTPayload {
   userId: string;

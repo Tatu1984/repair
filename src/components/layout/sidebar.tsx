@@ -196,6 +196,9 @@ export function MobileSidebarContent({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const user = useAuthStore((s) => s.user);
+  const displayName = user?.name || user?.role || "User";
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
     <div className="flex h-full flex-col">
@@ -248,13 +251,13 @@ export function MobileSidebarContent({
       {/* User Section */}
       <div className="flex items-center gap-3 px-4 py-3">
         <Avatar size="sm">
-          <AvatarImage src="/avatars/admin.png" alt="Admin" />
-          <AvatarFallback>AD</AvatarFallback>
+          <AvatarImage src={user?.avatarUrl || ""} alt={displayName} />
+          <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
         <div className="flex flex-col overflow-hidden">
-          <span className="truncate text-sm font-medium">Admin User</span>
+          <span className="truncate text-sm font-medium">{displayName}</span>
           <span className="text-muted-foreground truncate text-xs">
-            admin@repairassist.com
+            {user?.email || `+91 ${user?.phone || ""}`}
           </span>
         </div>
       </div>

@@ -251,7 +251,7 @@ export default function SettingsPage() {
 
   const handleSaveNotifications = () => {
     // Notification settings are not in the DB model yet
-    toast.success("Settings saved successfully");
+    toast.info("Notification preferences will be available soon");
   };
 
   const handleSaveVerification = () => {

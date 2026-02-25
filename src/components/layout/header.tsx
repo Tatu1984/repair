@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 
 interface HeaderProps {
   onMobileMenuToggle: () => void;
@@ -66,6 +67,8 @@ export function Header({ onMobileMenuToggle }: HeaderProps) {
           type="search"
           placeholder="Search..."
           className="h-9 pl-9 pr-12"
+          readOnly
+          title="Search is not yet available"
         />
         <kbd className="bg-muted text-muted-foreground pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border px-1.5 py-0.5 text-[10px] font-medium select-none sm:inline-block">
           Ctrl+K
@@ -75,7 +78,7 @@ export function Header({ onMobileMenuToggle }: HeaderProps) {
       {/* Right section */}
       <div className="flex items-center gap-2">
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative" onClick={() => toast.info("Notifications panel coming soon")}>
           <Bell className="size-5" />
           {unreadCount > 0 && (
             <Badge
@@ -128,7 +131,7 @@ export function Header({ onMobileMenuToggle }: HeaderProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Profile page coming soon")}>
                 <User />
                 Profile
               </DropdownMenuItem>

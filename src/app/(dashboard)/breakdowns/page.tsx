@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,8 @@ function getDisplayStatus(status: string): string {
     "DIAGNOSING",
     "IN_PROGRESS",
     "SEARCHING",
+    "ESTIMATE_SENT",
+    "ESTIMATE_APPROVED",
   ];
   if (activeStatuses.includes(status)) return "Active";
   return status.charAt(0) + status.slice(1).toLowerCase();
@@ -517,7 +519,11 @@ export default function BreakdownsPage() {
                               {formattedDate}
                             </td>
                             <td className="py-3">
-                              <Button variant="ghost" size="xs">
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => toast.info("Coming soon")}
+                              >
                                 <Eye className="h-3.5 w-3.5 mr-1" />
                                 View
                               </Button>
@@ -563,18 +569,39 @@ export default function BreakdownsPage() {
                   <ChevronLeft className="h-3.5 w-3.5" />
                   Previous
                 </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <Button
-                      key={page}
-                      variant={page === currentPage ? "default" : "outline"}
-                      size="icon-xs"
-                      onClick={() => setCurrentPage(page)}
-                    >
-                      {page}
-                    </Button>
-                  )
-                )}
+                {(() => {
+                  const pages: (number | string)[] = [];
+                  if (totalPages <= 7) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (currentPage > 3) pages.push("...");
+                    const start = Math.max(2, currentPage - 1);
+                    const end = Math.min(totalPages - 1, currentPage + 1);
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    if (currentPage < totalPages - 2) pages.push("...");
+                    pages.push(totalPages);
+                  }
+                  return pages.map((page, idx) =>
+                    typeof page === "string" ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="px-1 text-xs text-muted-foreground"
+                      >
+                        ...
+                      </span>
+                    ) : (
+                      <Button
+                        key={page}
+                        variant={page === currentPage ? "default" : "outline"}
+                        size="icon-xs"
+                        onClick={() => setCurrentPage(page)}
+                      >
+                        {page}
+                      </Button>
+                    )
+                  );
+                })()}
                 <Button
                   variant="outline"
                   size="xs"

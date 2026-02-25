@@ -7,7 +7,8 @@ import { apiClient } from "@/lib/api-client";
 export function useWorkshops() {
   return useQuery({
     queryKey: ["workshops"],
-    queryFn: () => apiClient<any[]>("/api/v1/admin/workshops/pending"),
+    queryFn: () =>
+      apiClient<{ workshops: any[] }>("/api/v1/admin/workshops/pending"),
   });
 }
 

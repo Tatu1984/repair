@@ -8,9 +8,19 @@ export const createDisputeSchema = z.object({
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
 });
 
-export const resolveDisputeSchema = z.object({
-  resolution: z.string().min(1),
-  status: z.enum(["RESOLVED", "CLOSED"]).default("RESOLVED"),
-});
+export const resolveDisputeSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("UNDER_REVIEW"),
+    resolution: z.string().optional().default(""),
+  }),
+  z.object({
+    status: z.literal("RESOLVED"),
+    resolution: z.string().min(1),
+  }),
+  z.object({
+    status: z.literal("CLOSED"),
+    resolution: z.string().min(1),
+  }),
+]);
 
 export type CreateDisputeInput = z.infer<typeof createDisputeSchema>;

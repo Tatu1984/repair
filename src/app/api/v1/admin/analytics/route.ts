@@ -5,9 +5,33 @@ import type { JWTPayload } from "@/lib/auth";
 
 export async function GET(req: Request) {
   return withAuth(req, async (_req, _user: JWTPayload) => {
+    const { searchParams } = new URL(req.url);
+    const range = searchParams.get("range") || "this-month";
+
     const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Determine date range based on query parameter
+    let rangeStartDate: Date;
+    switch (range) {
+      case "this-week": {
+        rangeStartDate = new Date(now);
+        rangeStartDate.setDate(rangeStartDate.getDate() - 7);
+        break;
+      }
+      case "3-months": {
+        rangeStartDate = new Date(now);
+        rangeStartDate.setMonth(rangeStartDate.getMonth() - 3);
+        break;
+      }
+      case "this-month":
+      default: {
+        rangeStartDate = new Date(now);
+        rangeStartDate.setDate(rangeStartDate.getDate() - 30);
+        break;
+      }
+    }
+
+    const thirtyDaysAgo = rangeStartDate;
     const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 

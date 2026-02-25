@@ -19,8 +19,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   XAxis,
@@ -61,8 +59,9 @@ function timeAgo(date: string) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function getInitials(name: string) {
-  return name
+function getInitials(name: string | null | undefined) {
+  const safeName = name ?? "Unknown";
+  return safeName
     .split(" ")
     .map((part) => part[0])
     .join("")
@@ -276,6 +275,7 @@ export default function DashboardPage() {
   const {
     data: activeBreakdownData,
     isLoading: isActiveLoading,
+    isError: isActiveError,
   } = useActiveBreakdowns();
 
   const stats = adminData?.stats;
@@ -643,7 +643,7 @@ export default function DashboardPage() {
                           </Avatar>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">
-                              {mech.user.name}
+                              {mech.user.name ?? "Unknown"}
                             </p>
                             <StarRating rating={mech.rating} />
                           </div>
@@ -684,11 +684,18 @@ export default function DashboardPage() {
             <CardContent>
               {isActiveLoading ? (
                 <Skeleton className="h-[320px] w-full rounded-lg" />
+              ) : isActiveError ? (
+                <div className="flex h-[320px] items-center justify-center rounded-lg border border-dashed bg-muted/30">
+                  <div className="text-center">
+                    <AlertTriangle className="mx-auto h-8 w-8 text-muted-foreground/60 mb-2" />
+                    <p className="text-sm text-muted-foreground">Failed to load active breakdowns</p>
+                  </div>
+                </div>
               ) : (
                 <MapView
                   markers={mapMarkers}
                   height="320px"
-                  zoom={mapMarkers.length > 0 ? 5 : 5}
+                  zoom={5}
                 />
               )}
             </CardContent>
@@ -704,7 +711,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 gap-3">
-                <Link href="/mechanics/new">
+                <Link href="/mechanics">
                   <Button variant="outline" className="w-full justify-start h-11 gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
                       <UserPlus className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -720,7 +727,7 @@ export default function DashboardPage() {
                     <span className="font-medium">View Disputes</span>
                   </Button>
                 </Link>
-                <Link href="/reports">
+                <Link href="/analytics">
                   <Button variant="outline" className="w-full justify-start h-11 gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
                       <FileDown className="h-4 w-4 text-green-600 dark:text-green-400" />

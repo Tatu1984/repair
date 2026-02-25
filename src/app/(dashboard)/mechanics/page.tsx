@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,13 +90,6 @@ function mapStatus(status: Mechanic["status"]): string {
     BUSY: "Busy",
   };
   return statusMap[status] || "Offline";
-}
-
-function formatJoinedDate(createdAt: string): string {
-  return new Date(createdAt).toLocaleDateString("en-IN", {
-    month: "short",
-    year: "numeric",
-  });
 }
 
 // --- Star Rating ---
@@ -299,7 +292,6 @@ export default function MechanicsPage() {
   const filtered = allMechanics.filter((m) => {
     const name = m.user.name;
     const phone = m.user.phone;
-    const displayStatus = mapStatus(m.status);
 
     const matchesSearch =
       searchQuery === "" ||
@@ -318,7 +310,7 @@ export default function MechanicsPage() {
 
   const handleApprove = (mech: Mechanic) => {
     verifyMechanic.mutate(
-      { id: mech.id, action: "APPROVED" },
+      { id: mech.id, action: "approve" },
       {
         onSuccess: () => toast.success("Mechanic approved successfully"),
         onError: (err) => toast.error(err.message || "Failed to update mechanic"),
@@ -328,7 +320,7 @@ export default function MechanicsPage() {
 
   const handleReject = (mech: Mechanic) => {
     verifyMechanic.mutate(
-      { id: mech.id, action: "REJECTED" },
+      { id: mech.id, action: "reject" },
       {
         onSuccess: () => toast.success("Mechanic rejected successfully"),
         onError: (err) => toast.error(err.message || "Failed to update mechanic"),
@@ -338,7 +330,7 @@ export default function MechanicsPage() {
 
   const handleSuspend = (mech: Mechanic) => {
     verifyMechanic.mutate(
-      { id: mech.id, action: "SUSPENDED" },
+      { id: mech.id, action: "suspend" },
       {
         onSuccess: () => toast.success("Mechanic suspended successfully"),
         onError: (err) => toast.error(err.message || "Failed to update mechanic"),
@@ -374,7 +366,7 @@ export default function MechanicsPage() {
             Manage and monitor registered mechanics
           </p>
         </div>
-        <Button>
+        <Button onClick={() => toast.info("Coming soon")}>
           <UserPlus className="h-4 w-4 mr-2" />
           Add Mechanic
         </Button>
@@ -463,9 +455,9 @@ export default function MechanicsPage() {
                   const verified = mech.verificationStatus === "APPROVED";
                   const isPending = mech.verificationStatus === "PENDING";
                   const locationText =
-                    mech.latitude && mech.longitude
+                    mech.latitude != null && mech.longitude != null
                       ? `${mech.latitude.toFixed(4)}, ${mech.longitude.toFixed(4)}`
-                      : "Location available";
+                      : "No location";
 
                   return (
                     <motion.div
@@ -514,7 +506,7 @@ export default function MechanicsPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
                                   <Eye className="h-4 w-4" />
                                   View Profile
                                 </DropdownMenuItem>
@@ -628,9 +620,9 @@ export default function MechanicsPage() {
                             const displayStatus = mapStatus(mech.status);
                             const verified = mech.verificationStatus === "APPROVED";
                             const locationText =
-                              mech.latitude && mech.longitude
+                              mech.latitude != null && mech.longitude != null
                                 ? `${mech.latitude.toFixed(4)}, ${mech.longitude.toFixed(4)}`
-                                : "Location available";
+                                : "No location";
 
                             return (
                               <tr
@@ -685,7 +677,7 @@ export default function MechanicsPage() {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                      <DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
                                         <Eye className="h-4 w-4" />
                                         View Profile
                                       </DropdownMenuItem>

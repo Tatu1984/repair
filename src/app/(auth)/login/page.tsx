@@ -13,12 +13,11 @@ import {
   UserCog,
   ChevronRight,
 } from "lucide-react";
-import Link from "next/link";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 
 const roleIcons = {
   rider: Bike,
@@ -84,6 +83,20 @@ export default function LoginPage() {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       otpRefs.current[index - 1]?.focus();
     }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (pastedData.length === 0) return;
+    const newOtp = [...otp];
+    for (let i = 0; i < 6; i++) {
+      newOtp[i] = pastedData[i] || "";
+    }
+    setOtp(newOtp);
+    // Focus the next empty field or the last field
+    const nextEmpty = newOtp.findIndex((v) => !v);
+    otpRefs.current[nextEmpty === -1 ? 5 : nextEmpty]?.focus();
   };
 
   const handleVerifyOtp = async () => {
@@ -236,6 +249,7 @@ export default function LoginPage() {
                 setRole(v as typeof role);
                 setOtpSent(false);
                 setOtp(["", "", "", "", "", ""]);
+                setError("");
               }}
             >
               <TabsList className="w-full">
@@ -378,6 +392,7 @@ export default function LoginPage() {
                             value={digit}
                             onChange={(e) => handleOtpChange(index, e.target.value)}
                             onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                            onPaste={handleOtpPaste}
                             className="h-12 w-12 text-center text-lg font-semibold"
                           />
                         </motion.div>
@@ -437,6 +452,7 @@ export default function LoginPage() {
                   router.push("/dashboard");
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "Demo login failed");
+                } finally {
                   setIsLoading(false);
                 }
               }}
@@ -465,7 +481,7 @@ export default function LoginPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.4 }}
           >
-            <Button variant="outline" className="w-full" size="lg">
+            <Button variant="outline" className="w-full" size="lg" onClick={() => toast.info("Google Sign-In coming soon")}>
               <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
@@ -496,12 +512,12 @@ export default function LoginPage() {
             className="text-center text-sm text-muted-foreground"
           >
             Don&apos;t have an account?{" "}
-            <Link
-              href="/register"
+            <button
+              onClick={() => toast.info("Registration coming soon")}
               className="text-primary font-medium hover:underline"
             >
               Register here
-            </Link>
+            </button>
           </motion.p>
         </motion.div>
       </div>

@@ -198,7 +198,7 @@ function EmptyChartState({ message = "No data available" }: { message?: string }
 
 export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState("this-week");
-  const { data, isLoading, isError, refetch } = useAnalytics();
+  const { data, isLoading, isError, refetch } = useAnalytics(dateRange);
 
   if (isLoading) {
     return <AnalyticsSkeleton />;

@@ -11,7 +11,8 @@ export function useMechanics(filters: { search?: string; status?: string } = {})
       const params = new URLSearchParams();
       if (filters.search) params.set("search", filters.search);
       if (filters.status) params.set("status", filters.status);
-      return apiClient<any[]>(`/api/v1/admin/mechanics/pending?${params.toString()}`);
+      const res = await apiClient<{ mechanics: any[] }>(`/api/v1/admin/mechanics/pending?${params.toString()}`);
+      return res.mechanics;
     },
   });
 }
@@ -20,7 +21,10 @@ export function useMechanics(filters: { search?: string; status?: string } = {})
 export function useAllMechanics() {
   return useQuery({
     queryKey: ["all-mechanics"],
-    queryFn: () => apiClient<any[]>("/api/v1/admin/mechanics/pending"),
+    queryFn: async () => {
+      const res = await apiClient<{ mechanics: any[] }>("/api/v1/admin/mechanics/pending");
+      return res.mechanics;
+    },
   });
 }
 

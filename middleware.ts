@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "repair-assist-jwt-secret-key-2024"
-);
+function getSecret(envVar: string, fallback: string): Uint8Array {
+  const secret = process.env[envVar];
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error(`${envVar} environment variable must be set in production`);
+  }
+  return new TextEncoder().encode(secret || fallback);
+}
+
+const JWT_SECRET = getSecret("JWT_SECRET", "repair-assist-jwt-secret-key-2024");
 
 const publicPaths = ["/", "/login", "/api/v1/auth"];
 
@@ -22,7 +28,7 @@ export async function middleware(request: NextRequest) {
     isPublicPath(pathname) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/v1/auth") ||
-    pathname.includes(".")
+    /\.(ico|png|jpg|jpeg|svg|gif|webp|css|js|woff2?|ttf|eot|map)$/i.test(pathname)
   ) {
     return NextResponse.next();
   }

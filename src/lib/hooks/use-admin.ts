@@ -59,10 +59,11 @@ interface AnalyticsData {
   topParts: { name: string; demand: number; trend: number }[];
 }
 
-export function useAnalytics() {
+export function useAnalytics(range?: string) {
+  const params = range ? `?range=${encodeURIComponent(range)}` : "";
   return useQuery({
-    queryKey: ["analytics"],
-    queryFn: () => apiClient<AnalyticsData>("/api/v1/admin/analytics"),
+    queryKey: ["analytics", range],
+    queryFn: () => apiClient<AnalyticsData>(`/api/v1/admin/analytics${params}`),
     staleTime: 60000, // Cache for 1 minute
   });
 }

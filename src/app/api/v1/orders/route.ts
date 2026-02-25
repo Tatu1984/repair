@@ -34,8 +34,7 @@ export async function POST(req: Request) {
     const gstAmount = Math.round(subtotal * 0.18);
     const totalAmount = subtotal + gstAmount;
 
-    const count = await prisma.partOrder.count();
-    const displayId = `ORD-${String(count + 10234).padStart(5, "0")}`;
+    const displayId = `ORD-${Date.now().toString(36).toUpperCase().slice(-5)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 
     const order = await prisma.partOrder.create({
       data: {
@@ -52,7 +51,7 @@ export async function POST(req: Request) {
       },
       include: {
         part: true,
-        workshop: { select: { name: true } },
+        workshop: { select: { name: true, address: true } },
       },
     });
 
@@ -98,5 +97,5 @@ export async function GET(req: Request) {
       orders,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-  });
+  }, ["ADMIN"]);
 }

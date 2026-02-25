@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -292,7 +292,9 @@ export default function WorkshopsPage() {
 
   const workshops: Workshop[] = useMemo(() => {
     if (!data) return [];
-    return Array.isArray(data) ? data : [];
+    if (Array.isArray(data)) return data;
+    if (data.workshops && Array.isArray(data.workshops)) return data.workshops;
+    return [];
   }, [data]);
 
   const getPartsCount = (ws: Workshop): number => {
@@ -312,7 +314,8 @@ export default function WorkshopsPage() {
         ws.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ownerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ws.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ws.gstNumber.toLowerCase().includes(searchQuery.toLowerCase());
+        ws.gstNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        workshopPhone.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -329,7 +332,7 @@ export default function WorkshopsPage() {
     totalParts: workshops.reduce((sum, w) => sum + getPartsCount(w), 0),
   }), [workshops]);
 
-  const handleAction = (workshopId: string, action: "APPROVED" | "REJECTED" | "SUSPENDED", label: string) => {
+  const handleAction = (workshopId: string, action: "approve" | "reject" | "suspend", label: string) => {
     verifyWorkshop.mutate(
       { id: workshopId, action },
       {
@@ -379,7 +382,7 @@ export default function WorkshopsPage() {
             Manage registered workshops and spare parts suppliers
           </p>
         </div>
-        <Button>
+        <Button onClick={() => toast.info("Coming soon")}>
           <Plus className="h-4 w-4 mr-2" />
           Add Workshop
         </Button>
@@ -577,11 +580,11 @@ export default function WorkshopsPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
                                 <Eye className="h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
                                 <ExternalLink className="h-4 w-4" />
                                 View Storefront
                               </DropdownMenuItem>
@@ -589,7 +592,7 @@ export default function WorkshopsPage() {
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
-                                    onClick={() => handleAction(ws.id, "APPROVED", "approved")}
+                                    onClick={() => handleAction(ws.id, "approve", "approved")}
                                     disabled={verifyWorkshop.isPending}
                                   >
                                     <CheckCircle2 className="h-4 w-4" />
@@ -597,7 +600,7 @@ export default function WorkshopsPage() {
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     variant="destructive"
-                                    onClick={() => handleAction(ws.id, "REJECTED", "rejected")}
+                                    onClick={() => handleAction(ws.id, "reject", "rejected")}
                                     disabled={verifyWorkshop.isPending}
                                   >
                                     <XCircle className="h-4 w-4" />
@@ -610,7 +613,7 @@ export default function WorkshopsPage() {
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     variant="destructive"
-                                    onClick={() => handleAction(ws.id, "SUSPENDED", "suspended")}
+                                    onClick={() => handleAction(ws.id, "suspend", "suspended")}
                                     disabled={verifyWorkshop.isPending}
                                   >
                                     <Ban className="h-4 w-4" />
@@ -622,7 +625,7 @@ export default function WorkshopsPage() {
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
-                                    onClick={() => handleAction(ws.id, "APPROVED", "reactivated")}
+                                    onClick={() => handleAction(ws.id, "approve", "reactivated")}
                                     disabled={verifyWorkshop.isPending}
                                   >
                                     <CheckCircle2 className="h-4 w-4" />
@@ -634,7 +637,7 @@ export default function WorkshopsPage() {
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
-                                    onClick={() => handleAction(ws.id, "APPROVED", "approved")}
+                                    onClick={() => handleAction(ws.id, "approve", "approved")}
                                     disabled={verifyWorkshop.isPending}
                                   >
                                     <CheckCircle2 className="h-4 w-4" />

@@ -17,8 +17,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const count = await prisma.dispute.count();
-    const displayId = `DSP-${String(count + 401).padStart(3, "0")}`;
+    const displayId = `DSP-${Date.now().toString(36).toUpperCase().slice(-5)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 
     const dispute = await prisma.dispute.create({
       data: {
@@ -66,5 +65,5 @@ export async function GET(req: Request) {
       disputes,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-  });
+  }, ["ADMIN"]);
 }

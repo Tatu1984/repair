@@ -21,6 +21,17 @@ const Popup = dynamic(
   { ssr: false }
 );
 
+// Fix Leaflet default icon issue in Next.js/webpack
+const DefaultIcon = typeof window !== "undefined" ? require("leaflet") : null;
+if (DefaultIcon) {
+  delete (DefaultIcon.Icon.Default.prototype as any)._getIconUrl;
+  DefaultIcon.Icon.Default.mergeOptions({
+    iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+    iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+    shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  });
+}
+
 interface MapMarker {
   id: string;
   lat: number;

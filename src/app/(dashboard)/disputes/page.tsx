@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -19,6 +19,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -169,8 +170,71 @@ function DisputesSkeleton() {
 
 // --- Component ---
 
+// --- Resolution Modal ---
+
+function ResolveModal({
+  dispute,
+  onClose,
+  onSubmit,
+  isPending,
+}: {
+  dispute: any;
+  onClose: () => void;
+  onSubmit: (resolution: string) => void;
+  isPending: boolean;
+}) {
+  const [resolution, setResolution] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-md rounded-lg border bg-background p-6 shadow-xl"
+      >
+        <h2 className="text-lg font-semibold">Resolve Dispute</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Provide a resolution for dispute{" "}
+          <span className="font-mono font-semibold">{dispute.displayId}</span>
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Reason: {dispute.reason}
+        </p>
+        <div className="mt-4">
+          <label className="text-sm font-medium" htmlFor="resolution-input">
+            Resolution
+          </label>
+          <textarea
+            id="resolution-input"
+            className="mt-1.5 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[100px] resize-y"
+            placeholder="Describe how this dispute was resolved..."
+            value={resolution}
+            onChange={(e) => setResolution(e.target.value)}
+          />
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => onSubmit(resolution)}
+            disabled={isPending || resolution.trim().length === 0}
+          >
+            {isPending ? "Resolving..." : "Resolve"}
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// --- Component ---
+
 export default function DisputesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [resolvingDispute, setResolvingDispute] = useState<any | null>(null);
 
   const {
     data,
@@ -253,6 +317,23 @@ export default function DisputesPage() {
       }
     );
   }
+
+  const handleResolveSubmit = useCallback(
+    (resolution: string) => {
+      if (!resolvingDispute) return;
+      resolveDispute.mutate(
+        { id: resolvingDispute.id, resolution, status: "RESOLVED" },
+        {
+          onSuccess: () => {
+            toast.success("Dispute resolved successfully");
+            setResolvingDispute(null);
+          },
+          onError: (err) => toast.error(err.message),
+        }
+      );
+    },
+    [resolvingDispute, resolveDispute]
+  );
 
   if (isLoading) {
     return <DisputesSkeleton />;
@@ -457,14 +538,22 @@ export default function DisputesPage() {
                               {resolveDispute.isPending ? "Updating..." : "Review"}
                               <ArrowRight className="size-3.5" />
                             </Button>
+                          ) : dispute.status === "UNDER_REVIEW" ? (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => setResolvingDispute(dispute)}
+                            >
+                              Resolve
+                              <ArrowRight className="size-3.5" />
+                            </Button>
                           ) : (
                             <Button
-                              variant={dispute.status === "UNDER_REVIEW" ? "default" : "outline"}
+                              variant="outline"
                               size="sm"
+                              onClick={() => toast.info("Coming soon")}
                             >
-                              {dispute.status === "UNDER_REVIEW"
-                                ? "Review"
-                                : "View Details"}
+                              View Details
                               <ArrowRight className="size-3.5" />
                             </Button>
                           )}
@@ -501,6 +590,18 @@ export default function DisputesPage() {
           </AnimatePresence>
         </div>
       )}
+
+      {/* Resolution Modal */}
+      <AnimatePresence>
+        {resolvingDispute && (
+          <ResolveModal
+            dispute={resolvingDispute}
+            onClose={() => setResolvingDispute(null)}
+            onSubmit={handleResolveSubmit}
+            isPending={resolveDispute.isPending}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
