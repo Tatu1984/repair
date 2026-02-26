@@ -37,6 +37,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useOrders, useUpdateOrderStatus } from "@/lib/hooks/use-orders";
+import { useWorkshopOrders } from "@/lib/hooks/use-workshop";
+import { useAuthStore } from "@/lib/store/auth-store";
 
 // --- Types ---
 
@@ -574,6 +576,17 @@ function OrderDetailPanel({
               <div>
                 <h4 className="mb-3 text-sm font-semibold">Actions</h4>
                 <div className="flex flex-wrap gap-2">
+                  {order.orderStatus === "Pending" && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => onUpdateStatus(order.id, "CONFIRMED")}
+                      disabled={isUpdating}
+                    >
+                      <CheckCircle2 className="mr-1.5 size-3.5" />
+                      Confirm Order
+                    </Button>
+                  )}
                   {(order.orderStatus === "Pending" || order.orderStatus === "Confirmed") && (
                     <Button
                       size="sm"
@@ -629,12 +642,24 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<MappedOrder | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const userRole = useAuthStore((s) => s.user?.role);
+  const isWorkshop = userRole === "WORKSHOP";
 
   const statusFilter = TAB_STATUS_MAP[activeTab];
-  const { data, isLoading, isError, error, refetch } = useOrders({
+
+  // Use workshop-specific API for WORKSHOP role
+  const adminQuery = useOrders({
     status: statusFilter,
     page: currentPage,
   });
+  const workshopQuery = useWorkshopOrders({
+    status: statusFilter,
+    page: currentPage,
+  });
+
+  const { data, isLoading, isError, error, refetch } = isWorkshop
+    ? workshopQuery
+    : adminQuery;
   const updateStatus = useUpdateOrderStatus();
 
   const handleTabChange = (tab: string) => {
@@ -680,9 +705,13 @@ export default function OrdersPage() {
     <div className="flex flex-col gap-6 p-4 md:p-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Orders</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          {isWorkshop ? "Workshop Orders" : "Orders"}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Manage and track all your part orders
+          {isWorkshop
+            ? "Manage orders received for your spare parts"
+            : "Manage and track all your part orders"}
         </p>
       </div>
 
@@ -729,7 +758,7 @@ export default function OrdersPage() {
                             Item
                           </th>
                           <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell">
-                            Workshop / Mechanic
+                            {isWorkshop ? "Buyer" : "Workshop / Mechanic"}
                           </th>
                           <th className="px-4 py-3 text-right font-medium text-muted-foreground">
                             Amount
@@ -790,7 +819,7 @@ export default function OrdersPage() {
                               </td>
                               <td className="hidden px-4 py-3 lg:table-cell">
                                 <p className="max-w-[160px] truncate text-xs">
-                                  {order.workshopMechanic}
+                                  {isWorkshop ? order.customer : order.workshopMechanic}
                                 </p>
                               </td>
                               <td className="px-4 py-3 text-right font-medium">

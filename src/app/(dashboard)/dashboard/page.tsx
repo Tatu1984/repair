@@ -41,6 +41,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAdminStats, useActiveBreakdowns } from "@/lib/hooks/use-admin";
 import { MapView } from "@/components/shared/map-view";
+import { useAuthStore } from "@/lib/store/auth-store";
+import { useWorkshopDashboard } from "@/lib/hooks/use-workshop";
 
 // --- Helpers ---
 
@@ -297,9 +299,301 @@ function MechanicSkeleton() {
   );
 }
 
-// --- Page Component ---
+// --- Workshop Dashboard ---
 
-export default function DashboardPage() {
+function WorkshopDashboard() {
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useWorkshopDashboard();
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+          <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
+        </div>
+        <h2 className="text-lg font-semibold">Failed to load dashboard</h2>
+        <p className="text-sm text-muted-foreground text-center max-w-md">
+          {(error as Error)?.message || "Something went wrong. Please try again."}
+        </p>
+        <Button onClick={() => refetch()} variant="outline" className="gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const stats = data?.stats;
+  const recentOrders = data?.recentOrders ?? [];
+  const lowStockParts = data?.lowStockParts ?? [];
+  const inventoryByCondition = data?.inventoryByCondition ?? [];
+
+  const kpiCards = [
+    {
+      title: "Total Parts",
+      value: stats?.totalParts ?? 0,
+      trend: `${stats?.activeParts ?? 0} active`,
+      icon: Package,
+      gradient: "from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20",
+      iconColor: "text-blue-600 dark:text-blue-400",
+    },
+    {
+      title: "Active Stock",
+      value: stats?.totalStock ?? 0,
+      trend: `${stats?.lowStockCount ?? 0} low stock`,
+      icon: Package,
+      gradient: "from-purple-500/10 to-pink-500/10 dark:from-purple-500/20 dark:to-pink-500/20",
+      iconColor: "text-purple-600 dark:text-purple-400",
+    },
+    {
+      title: "Pending Orders",
+      value: stats?.pendingOrders ?? 0,
+      trend: `${stats?.monthlyOrders ?? 0} this month`,
+      icon: Clock,
+      gradient: "from-orange-500/10 to-red-500/10 dark:from-orange-500/20 dark:to-red-500/20",
+      iconColor: "text-orange-600 dark:text-orange-400",
+    },
+    {
+      title: "Revenue This Month",
+      value: stats?.monthlyRevenue ?? 0,
+      prefix: "\u20B9",
+      trend: `\u20B9${(stats?.totalRevenue ?? 0).toLocaleString("en-IN")} total`,
+      icon: IndianRupee,
+      gradient: "from-green-500/10 to-emerald-500/10 dark:from-green-500/20 dark:to-emerald-500/20",
+      iconColor: "text-green-600 dark:text-green-400",
+    },
+  ];
+
+  const conditionLabels: Record<string, string> = {
+    USED_GOOD: "Used (Good)",
+    REFURBISHED: "Refurbished",
+    LIKE_NEW: "Like New",
+    OEM_SURPLUS: "OEM Surplus",
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-6 p-6"
+    >
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Workshop Dashboard</h1>
+        <p className="text-muted-foreground text-sm">
+          Your inventory, orders, and performance at a glance
+        </p>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => <KpiCardSkeleton key={i} />)
+          : kpiCards.map((kpi) => (
+              <Card key={kpi.title} className="relative overflow-hidden hover:shadow-md transition-shadow cursor-default group">
+                <div className={`absolute inset-0 bg-gradient-to-br ${kpi.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
+                <CardContent className="relative pt-0">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground font-medium">{kpi.title}</p>
+                      <p className="text-2xl font-bold tracking-tight">
+                        <AnimatedCounter target={kpi.value} prefix={kpi.prefix || ""} />
+                      </p>
+                    </div>
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-background/80 shadow-sm ${kpi.iconColor}`}>
+                      <kpi.icon className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-1">
+                    <span className="text-xs font-medium text-muted-foreground">{kpi.trend}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Recent Orders */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Recent Orders</CardTitle>
+              <CardDescription>Latest orders received for your parts</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="pb-3 pr-4 text-left font-medium">Part</th>
+                      <th className="pb-3 pr-4 text-left font-medium">Buyer</th>
+                      <th className="pb-3 pr-4 text-right font-medium">Amount</th>
+                      <th className="pb-3 pr-4 text-left font-medium">Status</th>
+                      <th className="pb-3 text-left font-medium">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isLoading
+                      ? Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} />)
+                      : recentOrders.map((order: any) => (
+                          <tr key={order.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                            <td className="py-3 pr-4 font-medium">{order.part?.name ?? "Unknown"}</td>
+                            <td className="py-3 pr-4 text-muted-foreground">{order.buyer?.name ?? "Unknown"}</td>
+                            <td className="py-3 pr-4 text-right font-medium">
+                              {"\u20B9"}{order.totalAmount?.toLocaleString("en-IN") ?? 0}
+                            </td>
+                            <td className="py-3 pr-4">
+                              <StatusBadge status={mapStatusToLabel(order.orderStatus)} />
+                            </td>
+                            <td className="py-3 text-muted-foreground text-xs flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {timeAgo(order.createdAt)}
+                            </td>
+                          </tr>
+                        ))}
+                  </tbody>
+                </table>
+                {!isLoading && recentOrders.length === 0 && (
+                  <div className="flex flex-col items-center justify-center gap-2 py-12">
+                    <Package className="size-8 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">No orders yet</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Low Stock Alerts + Inventory by Condition */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertTriangle className="size-4 text-orange-500" />
+                Low Stock Alerts
+              </CardTitle>
+              <CardDescription>Parts with stock below 5 units</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : lowStockParts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-6">
+                  <CheckCircle2 className="size-8 text-green-500/60" />
+                  <p className="text-xs text-muted-foreground text-center">All parts are well stocked</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {lowStockParts.map((part: any) => (
+                    <div
+                      key={part.id}
+                      className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/30"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{part.name}</p>
+                        <p className="text-xs text-muted-foreground">{part.brand}</p>
+                      </div>
+                      <span className={`text-sm font-bold ${part.stock === 0 ? "text-red-600" : "text-yellow-600"}`}>
+                        {part.stock} left
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Inventory Summary</CardTitle>
+              <CardDescription>Stock breakdown by condition</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-8 w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : inventoryByCondition.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No inventory data</p>
+              ) : (
+                <div className="space-y-2">
+                  {inventoryByCondition.map((item: any) => (
+                    <div key={item.condition} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {conditionLabels[item.condition] ?? item.condition}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground">{item.count} parts</span>
+                        <span className="font-semibold">{item.totalStock} units</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Link href="/my-inventory">
+              <Button variant="outline" className="w-full justify-start h-11 gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+                  <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <span className="font-medium">My Inventory</span>
+              </Button>
+            </Link>
+            <Link href="/orders">
+              <Button variant="outline" className="w-full justify-start h-11 gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10">
+                  <Star className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                </div>
+                <span className="font-medium">View Orders</span>
+              </Button>
+            </Link>
+            <Link href="/marketplace">
+              <Button variant="outline" className="w-full justify-start h-11 gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
+                  <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+                </div>
+                <span className="font-medium">Marketplace</span>
+              </Button>
+            </Link>
+            <Link href="/settings">
+              <Button variant="outline" className="w-full justify-start h-11 gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
+                  <Settings className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <span className="font-medium">Workshop Profile</span>
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+// --- Admin Page Component ---
+
+function AdminDashboard() {
   const {
     data: adminData,
     isLoading: isStatsLoading,
@@ -854,4 +1148,16 @@ export default function DashboardPage() {
       </motion.div>
     </motion.div>
   );
+}
+
+// --- Route Export ---
+
+export default function DashboardPage() {
+  const user = useAuthStore((s) => s.user);
+
+  if (user?.role === "WORKSHOP") {
+    return <WorkshopDashboard />;
+  }
+
+  return <AdminDashboard />;
 }

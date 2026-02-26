@@ -41,6 +41,11 @@ import {
   usePlatformConfig,
   useUpdatePlatformConfig,
 } from "@/lib/hooks/use-admin";
+import { useAuthStore } from "@/lib/store/auth-store";
+import {
+  useWorkshopProfile,
+  useUpdateWorkshopProfile,
+} from "@/lib/hooks/use-workshop";
 
 // ---------- Toggle Switch ----------
 
@@ -145,9 +150,292 @@ function SettingsErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-// ---------- Component ----------
+// ---------- Workshop Settings ----------
 
-export default function SettingsPage() {
+function WorkshopSettingsPage() {
+  const { data: profileData, isLoading, isError, refetch } = useWorkshopProfile();
+  const updateProfile = useUpdateWorkshopProfile();
+
+  const [wsName, setWsName] = useState("");
+  const [wsAddress, setWsAddress] = useState("");
+  const [wsPhone, setWsPhone] = useState("");
+  const [wsGst, setWsGst] = useState("");
+  const [wsPan, setWsPan] = useState("");
+  const [wsAadhaar, setWsAadhaar] = useState("");
+  const [wsBankName, setWsBankName] = useState("");
+  const [wsBankAccount, setWsBankAccount] = useState("");
+  const [wsBankIfsc, setWsBankIfsc] = useState("");
+  const [wsServiceRadius, setWsServiceRadius] = useState("15");
+  const [wsSpecialties, setWsSpecialties] = useState("");
+
+  useEffect(() => {
+    if (profileData?.workshop) {
+      const ws = profileData.workshop;
+      setWsName(ws.name || "");
+      setWsAddress(ws.address || "");
+      setWsPhone(ws.phone || "");
+      setWsGst(ws.gstNumber || "");
+      setWsPan(ws.panNumber || "");
+      setWsAadhaar(ws.aadhaarNumber || "");
+      setWsBankName(ws.bankAccountName || "");
+      setWsBankAccount(ws.bankAccountNumber || "");
+      setWsBankIfsc(ws.bankIfscCode || "");
+      setWsServiceRadius(String(ws.serviceRadiusKm ?? 15));
+      const specs = Array.isArray(ws.specialties) ? ws.specialties : [];
+      setWsSpecialties(specs.join(", "));
+    }
+  }, [profileData]);
+
+  const handleSaveProfile = () => {
+    const specialtiesArr = wsSpecialties
+      .split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+
+    updateProfile.mutate(
+      {
+        name: wsName,
+        address: wsAddress,
+        phone: wsPhone || undefined,
+        gstNumber: wsGst || undefined,
+        panNumber: wsPan || undefined,
+        aadhaarNumber: wsAadhaar || undefined,
+        bankAccountName: wsBankName || undefined,
+        bankAccountNumber: wsBankAccount || undefined,
+        bankIfscCode: wsBankIfsc || undefined,
+        serviceRadiusKm: Number(wsServiceRadius) || 15,
+        specialties: specialtiesArr,
+      },
+      {
+        onSuccess: () => toast.success("Workshop profile updated"),
+        onError: (err: Error) => toast.error(err.message || "Failed to save"),
+      }
+    );
+  };
+
+  if (isLoading) return <SettingsLoadingSkeleton />;
+  if (isError) return <SettingsErrorState onRetry={() => refetch()} />;
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+          Workshop Settings
+        </h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Manage your workshop profile and KYC information
+        </p>
+      </div>
+
+      <Tabs defaultValue="profile" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="profile" className="gap-1.5">
+            <Settings className="size-4" />
+            Profile
+          </TabsTrigger>
+          <TabsTrigger value="kyc" className="gap-1.5">
+            <Shield className="size-4" />
+            KYC &amp; Bank
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Profile Tab */}
+        <TabsContent value="profile">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>Workshop Profile</CardTitle>
+                <CardDescription>
+                  Basic information about your workshop.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="ws-name">Workshop Name</Label>
+                    <Input
+                      id="ws-name"
+                      value={wsName}
+                      onChange={(e) => setWsName(e.target.value)}
+                      placeholder="e.g. Sharma Auto Parts"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ws-phone">Phone</Label>
+                    <Input
+                      id="ws-phone"
+                      type="tel"
+                      value={wsPhone}
+                      onChange={(e) => setWsPhone(e.target.value)}
+                      placeholder="+91 9876543210"
+                    />
+                  </div>
+                  <div className="col-span-full space-y-2">
+                    <Label htmlFor="ws-address">Address</Label>
+                    <Input
+                      id="ws-address"
+                      value={wsAddress}
+                      onChange={(e) => setWsAddress(e.target.value)}
+                      placeholder="Full workshop address"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ws-gst">GST Number</Label>
+                    <Input
+                      id="ws-gst"
+                      value={wsGst}
+                      onChange={(e) => setWsGst(e.target.value)}
+                      placeholder="e.g. 22ABCDE1234F1Z5"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ws-radius">Service Radius (km)</Label>
+                    <Input
+                      id="ws-radius"
+                      type="number"
+                      value={wsServiceRadius}
+                      onChange={(e) => setWsServiceRadius(e.target.value)}
+                      placeholder="15"
+                      className="w-32"
+                    />
+                  </div>
+                  <div className="col-span-full space-y-2">
+                    <Label htmlFor="ws-specialties">
+                      Specialties (comma-separated)
+                    </Label>
+                    <Input
+                      id="ws-specialties"
+                      value={wsSpecialties}
+                      onChange={(e) => setWsSpecialties(e.target.value)}
+                      placeholder="e.g. Honda, TVS, Bajaj"
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="flex justify-end">
+                  <Button
+                    className="gap-2"
+                    onClick={handleSaveProfile}
+                    disabled={updateProfile.isPending}
+                  >
+                    {updateProfile.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
+                    Save Changes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
+
+        {/* KYC & Bank Tab */}
+        <TabsContent value="kyc">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>KYC &amp; Bank Details</CardTitle>
+                <CardDescription>
+                  Verification documents and payout information.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="ws-pan">PAN Number</Label>
+                    <Input
+                      id="ws-pan"
+                      value={wsPan}
+                      onChange={(e) => setWsPan(e.target.value)}
+                      placeholder="e.g. ABCDE1234F"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ws-aadhaar">Aadhaar Number</Label>
+                    <Input
+                      id="ws-aadhaar"
+                      value={wsAadhaar}
+                      onChange={(e) => setWsAadhaar(e.target.value)}
+                      placeholder="e.g. 1234 5678 9012"
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <p className="text-sm font-medium mb-4">Bank Account</p>
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="ws-bank-name">Account Holder Name</Label>
+                      <Input
+                        id="ws-bank-name"
+                        value={wsBankName}
+                        onChange={(e) => setWsBankName(e.target.value)}
+                        placeholder="Name as on bank account"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ws-bank-acc">Account Number</Label>
+                      <Input
+                        id="ws-bank-acc"
+                        value={wsBankAccount}
+                        onChange={(e) => setWsBankAccount(e.target.value)}
+                        placeholder="Account number"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ws-ifsc">IFSC Code</Label>
+                      <Input
+                        id="ws-ifsc"
+                        value={wsBankIfsc}
+                        onChange={(e) => setWsBankIfsc(e.target.value)}
+                        placeholder="e.g. SBIN0001234"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="flex justify-end">
+                  <Button
+                    className="gap-2"
+                    onClick={handleSaveProfile}
+                    disabled={updateProfile.isPending}
+                  >
+                    {updateProfile.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
+                    Save Changes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ---------- Admin Settings Component ----------
+
+function AdminSettingsPage() {
   const { data: config, isLoading, isError, refetch } = usePlatformConfig();
   const updateConfig = useUpdatePlatformConfig();
 
@@ -860,4 +1148,16 @@ export default function SettingsPage() {
       </Tabs>
     </div>
   );
+}
+
+// ---------- Route Export ----------
+
+export default function SettingsPage() {
+  const user = useAuthStore((s) => s.user);
+
+  if (user?.role === "WORKSHOP") {
+    return <WorkshopSettingsPage />;
+  }
+
+  return <AdminSettingsPage />;
 }

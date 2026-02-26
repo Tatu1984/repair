@@ -14,6 +14,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  BoxesIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,53 +27,51 @@ import {
 } from "@/components/ui/avatar";
 import { useAuthStore } from "@/lib/store/auth-store";
 
-const navItems = [
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Breakdowns",
-    href: "/breakdowns",
-    icon: AlertTriangle,
-  },
-  {
-    title: "Mechanics",
-    href: "/mechanics",
-    icon: Wrench,
-  },
-  {
-    title: "Workshops",
-    href: "/workshops",
-    icon: Store,
-  },
-  {
-    title: "Marketplace",
-    href: "/marketplace",
-    icon: Package,
-  },
-  {
-    title: "Orders",
-    href: "/orders",
-    icon: ShoppingCart,
-  },
-  {
-    title: "Disputes",
-    href: "/disputes",
-    icon: Shield,
-  },
-  {
-    title: "Analytics",
-    href: "/analytics",
-    icon: BarChart3,
-  },
-  {
-    title: "Settings",
-    href: "/settings",
-    icon: Settings,
-  },
+interface NavItem {
+  title: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const adminNavItems: NavItem[] = [
+  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Breakdowns", href: "/breakdowns", icon: AlertTriangle },
+  { title: "Mechanics", href: "/mechanics", icon: Wrench },
+  { title: "Workshops", href: "/workshops", icon: Store },
+  { title: "Marketplace", href: "/marketplace", icon: Package },
+  { title: "Orders", href: "/orders", icon: ShoppingCart },
+  { title: "Disputes", href: "/disputes", icon: Shield },
+  { title: "Analytics", href: "/analytics", icon: BarChart3 },
+  { title: "Settings", href: "/settings", icon: Settings },
 ];
+
+const workshopNavItems: NavItem[] = [
+  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { title: "My Inventory", href: "/my-inventory", icon: BoxesIcon },
+  { title: "Orders", href: "/orders", icon: ShoppingCart },
+  { title: "Marketplace", href: "/marketplace", icon: Package },
+  { title: "Disputes", href: "/disputes", icon: Shield },
+  { title: "Settings", href: "/settings", icon: Settings },
+];
+
+const riderMechanicNavItems: NavItem[] = [
+  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Breakdowns", href: "/breakdowns", icon: AlertTriangle },
+  { title: "Marketplace", href: "/marketplace", icon: Package },
+  { title: "My Orders", href: "/orders", icon: ShoppingCart },
+  { title: "Settings", href: "/settings", icon: Settings },
+];
+
+function getNavItems(role?: string): NavItem[] {
+  switch (role) {
+    case "ADMIN":
+      return adminNavItems;
+    case "WORKSHOP":
+      return workshopNavItems;
+    default:
+      return riderMechanicNavItems;
+  }
+}
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -84,6 +83,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const displayName = user?.name || user?.role || "User";
   const initials = displayName.slice(0, 2).toUpperCase();
+  const navItems = getNavItems(user?.role);
 
   return (
     <aside
@@ -199,6 +199,7 @@ export function MobileSidebarContent({
   const user = useAuthStore((s) => s.user);
   const displayName = user?.name || user?.role || "User";
   const initials = displayName.slice(0, 2).toUpperCase();
+  const navItems = getNavItems(user?.role);
 
   return (
     <div className="flex h-full flex-col">

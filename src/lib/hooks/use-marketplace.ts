@@ -52,6 +52,22 @@ export function useCreatePart() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["spare-parts"] });
+      queryClient.invalidateQueries({ queryKey: ["workshop-inventory"] });
+    },
+  });
+}
+
+export function useUpdatePart() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      apiClient(`/api/v1/marketplace/parts/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["spare-parts"] });
+      queryClient.invalidateQueries({ queryKey: ["workshop-inventory"] });
     },
   });
 }
@@ -63,6 +79,7 @@ export function useDeletePart() {
       apiClient(`/api/v1/marketplace/parts/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["spare-parts"] });
+      queryClient.invalidateQueries({ queryKey: ["workshop-inventory"] });
     },
   });
 }
