@@ -420,6 +420,22 @@ model Notification {
   @@index([createdAt])
 }
 
+model VehicleMasterData {
+  id          String   @id @default(cuid())
+  vehicleType String
+  brand       String
+  model       String?
+  yearFrom    Int?
+  yearTo      Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([vehicleType])
+  @@index([brand])
+  @@unique([vehicleType, brand, model])
+}
+
 model PlatformConfig {
   id                   String  @id @default("singleton")
   platformName         String  @default("RepairAssist")

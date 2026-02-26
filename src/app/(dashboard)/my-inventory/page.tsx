@@ -44,6 +44,7 @@ import {
   useUpdatePart,
   useDeletePart,
 } from "@/lib/hooks/use-marketplace";
+import { useVehicleMaster } from "@/lib/hooks/use-vehicle-master";
 
 // --- Constants ---
 
@@ -112,6 +113,9 @@ function PartFormDialog({
   const createPart = useCreatePart();
   const updatePart = useUpdatePart();
   const isPending = createPart.isPending || updatePart.isPending;
+  const { data: vmData } = useVehicleMaster();
+  const grouped = vmData?.grouped ?? {};
+  const vehicleTypes = Object.keys(grouped);
 
   const [form, setForm] = useState<PartFormData>(() => {
     if (editPart) {
@@ -200,29 +204,6 @@ function PartFormDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label>Brand *</Label>
-              <Input
-                value={form.brand}
-                onChange={(e) => setField("brand", e.target.value)}
-                placeholder="e.g. Honda"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Vehicle Type</Label>
-              <Select value={form.vehicleType} onValueChange={(v) => setField("vehicleType", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2W">2 Wheeler</SelectItem>
-                  <SelectItem value="4W">4 Wheeler</SelectItem>
-                  <SelectItem value="EV">Electric Vehicle</SelectItem>
-                  <SelectItem value="UNIVERSAL">Universal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <Label>Condition</Label>
               <Select value={form.condition} onValueChange={(v) => setField("condition", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -236,31 +217,95 @@ function PartFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Cascading: Vehicle Type → Brand → Model */}
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Model</Label>
-              <Input
-                value={form.model}
-                onChange={(e) => setField("model", e.target.value)}
-                placeholder="e.g. Activa 6G"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <Select value={form.category} onValueChange={(v) => setField("category", v)}>
-                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+              <Label>Vehicle Type *</Label>
+              <Select
+                value={form.vehicleType}
+                onValueChange={(v) => {
+                  setField("vehicleType", v);
+                  setField("brand", "");
+                  setField("model", "");
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="engine">Engine</SelectItem>
-                  <SelectItem value="suspension">Suspension</SelectItem>
-                  <SelectItem value="electrical">Electrical</SelectItem>
-                  <SelectItem value="body">Body</SelectItem>
-                  <SelectItem value="brakes">Brakes</SelectItem>
-                  <SelectItem value="transmission">Transmission</SelectItem>
-                  <SelectItem value="exhaust">Exhaust</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {vehicleTypes.length > 0 ? (
+                    vehicleTypes.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="2-Wheeler">2-Wheeler</SelectItem>
+                      <SelectItem value="4-Wheeler">4-Wheeler</SelectItem>
+                      <SelectItem value="EV">EV</SelectItem>
+                      <SelectItem value="Truck">Truck</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Brand *</Label>
+              <Select
+                value={form.brand}
+                onValueChange={(v) => {
+                  setField("brand", v);
+                  setField("model", "");
+                }}
+                disabled={!form.vehicleType}
+              >
+                <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+                <SelectContent>
+                  {form.vehicleType && grouped[form.vehicleType] ? (
+                    Object.keys(grouped[form.vehicleType]).map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>Select type first</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Model</Label>
+              <Select
+                value={form.model}
+                onValueChange={(v) => setField("model", v)}
+                disabled={!form.brand}
+              >
+                <SelectTrigger><SelectValue placeholder="Select model" /></SelectTrigger>
+                <SelectContent>
+                  {form.vehicleType && form.brand && grouped[form.vehicleType]?.[form.brand] ? (
+                    grouped[form.vehicleType][form.brand]
+                      .filter((m) => m.model)
+                      .map((m) => (
+                        <SelectItem key={m.id} value={m.model!}>{m.model}</SelectItem>
+                      ))
+                  ) : (
+                    <SelectItem value="" disabled>Select brand first</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select value={form.category} onValueChange={(v) => setField("category", v)}>
+              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="engine">Engine</SelectItem>
+                <SelectItem value="suspension">Suspension</SelectItem>
+                <SelectItem value="electrical">Electrical</SelectItem>
+                <SelectItem value="body">Body</SelectItem>
+                <SelectItem value="brakes">Brakes</SelectItem>
+                <SelectItem value="transmission">Transmission</SelectItem>
+                <SelectItem value="exhaust">Exhaust</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-3 gap-4">

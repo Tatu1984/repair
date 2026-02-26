@@ -24,6 +24,7 @@ async function main() {
   await prisma.refreshToken.deleteMany();
   await prisma.otpVerification.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.vehicleMasterData.deleteMany();
   await prisma.platformConfig.deleteMany();
 
   console.log("  Cleaned existing data");
@@ -43,15 +44,16 @@ async function main() {
     },
   });
 
-  // --- Persistent OTP for demo login ---
-  await prisma.otpVerification.create({
-    data: {
-      phone: "9999999999",
-      otp: "123456",
-      role: "ADMIN",
-      expiresAt: new Date("2030-01-01"),
-    },
+  // --- Persistent OTPs for demo login ---
+  await prisma.otpVerification.createMany({
+    data: [
+      { phone: "9999999999", otp: "123456", role: "ADMIN", expiresAt: new Date("2030-01-01") },
+      { phone: "9811234567", otp: "123456", role: "WORKSHOP", expiresAt: new Date("2030-01-01") },
+      { phone: "8765543211", otp: "123456", role: "WORKSHOP", expiresAt: new Date("2030-01-01") },
+    ],
   });
+
+  console.log("  Created demo OTPs (admin + 2 workshops)");
 
   // --- Riders ---
   const riders = await Promise.all([
@@ -169,7 +171,7 @@ async function main() {
 
   console.log("  Created mechanics");
 
-  // --- Workshop Users + Workshop Profiles ---
+  // --- Workshop Users + Workshop Profiles (with KYC data) ---
   const wsUsers = await Promise.all([
     prisma.user.create({ data: { phone: "9811234567", name: "Rajendra Sharma", role: "WORKSHOP" } }),
     prisma.user.create({ data: { phone: "8765543211", name: "Kiran Patel", role: "WORKSHOP" } }),
@@ -191,6 +193,11 @@ async function main() {
         rating: 4.8,
         reviewCount: 156,
         specialties: ["Honda", "TVS", "Hero"],
+        panNumber: "ABCPS1234H",
+        aadhaarNumber: "1234 5678 9012",
+        bankAccountName: "Rajendra Sharma",
+        bankAccountNumber: "1234567890123456",
+        bankIfscCode: "SBIN0001234",
         monthlyRevenue: 285000,
         verificationStatus: "APPROVED",
       },
@@ -207,6 +214,11 @@ async function main() {
         rating: 4.6,
         reviewCount: 98,
         specialties: ["Bajaj", "Royal Enfield"],
+        panNumber: "DEFKP5678M",
+        aadhaarNumber: "9876 5432 1098",
+        bankAccountName: "Kiran Patel",
+        bankAccountNumber: "9876543210987654",
+        bankIfscCode: "HDFC0002345",
         monthlyRevenue: 198000,
         verificationStatus: "APPROVED",
       },
@@ -223,6 +235,11 @@ async function main() {
         rating: 4.9,
         reviewCount: 72,
         specialties: ["Ola", "Ather", "TVS iQube"],
+        panNumber: "GHIAH9012K",
+        aadhaarNumber: "4567 8901 2345",
+        bankAccountName: "Anil Hegde",
+        bankAccountNumber: "4567890123456789",
+        bankIfscCode: "ICIC0003456",
         monthlyRevenue: 340000,
         verificationStatus: "APPROVED",
       },
@@ -255,46 +272,123 @@ async function main() {
         rating: 4.5,
         reviewCount: 134,
         specialties: ["Hero", "Honda", "Bajaj"],
+        panNumber: "JKLSM7890L",
+        aadhaarNumber: "7890 1234 5678",
+        bankAccountName: "Soumya Mukherjee",
+        bankAccountNumber: "7890123456789012",
+        bankIfscCode: "BARB0004567",
         monthlyRevenue: 165000,
         verificationStatus: "APPROVED",
       },
     }),
   ]);
 
-  console.log("  Created workshops");
+  console.log("  Created workshops (with KYC)");
 
-  // --- Spare Parts ---
+  // --- Vehicle Master Data (~40 entries) ---
+  const vehicleMasterEntries = [
+    // 2-Wheeler — Honda
+    { vehicleType: "2-Wheeler", brand: "Honda", model: "Activa 6G", yearFrom: 2020, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Honda", model: "Shine 125", yearFrom: 2018, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Honda", model: "Unicorn 160", yearFrom: 2019, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Honda", model: "SP 125", yearFrom: 2019, yearTo: 2024 },
+    // 2-Wheeler — Bajaj
+    { vehicleType: "2-Wheeler", brand: "Bajaj", model: "Pulsar 150", yearFrom: 2017, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Bajaj", model: "Pulsar NS200", yearFrom: 2018, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Bajaj", model: "Platina 110", yearFrom: 2019, yearTo: 2024 },
+    // 2-Wheeler — Hero
+    { vehicleType: "2-Wheeler", brand: "Hero", model: "Splendor Plus", yearFrom: 2015, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Hero", model: "HF Deluxe", yearFrom: 2016, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Hero", model: "Passion Pro", yearFrom: 2018, yearTo: 2024 },
+    // 2-Wheeler — TVS
+    { vehicleType: "2-Wheeler", brand: "TVS", model: "Jupiter", yearFrom: 2018, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "TVS", model: "Apache RTR 160", yearFrom: 2019, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "TVS", model: "Ntorq 125", yearFrom: 2020, yearTo: 2024 },
+    // 2-Wheeler — Royal Enfield
+    { vehicleType: "2-Wheeler", brand: "Royal Enfield", model: "Classic 350", yearFrom: 2020, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Royal Enfield", model: "Meteor 350", yearFrom: 2021, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Royal Enfield", model: "Hunter 350", yearFrom: 2022, yearTo: 2024 },
+    // 2-Wheeler — Yamaha
+    { vehicleType: "2-Wheeler", brand: "Yamaha", model: "FZ-S V3", yearFrom: 2019, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Yamaha", model: "R15 V4", yearFrom: 2021, yearTo: 2024 },
+    // 2-Wheeler — Suzuki
+    { vehicleType: "2-Wheeler", brand: "Suzuki", model: "Access 125", yearFrom: 2017, yearTo: 2024 },
+    { vehicleType: "2-Wheeler", brand: "Suzuki", model: "Gixxer 150", yearFrom: 2019, yearTo: 2024 },
+    // 4-Wheeler — Maruti
+    { vehicleType: "4-Wheeler", brand: "Maruti", model: "Swift", yearFrom: 2018, yearTo: 2024 },
+    { vehicleType: "4-Wheeler", brand: "Maruti", model: "Alto K10", yearFrom: 2015, yearTo: 2024 },
+    { vehicleType: "4-Wheeler", brand: "Maruti", model: "Baleno", yearFrom: 2019, yearTo: 2024 },
+    // 4-Wheeler — Hyundai
+    { vehicleType: "4-Wheeler", brand: "Hyundai", model: "i20", yearFrom: 2020, yearTo: 2024 },
+    { vehicleType: "4-Wheeler", brand: "Hyundai", model: "Creta", yearFrom: 2020, yearTo: 2024 },
+    { vehicleType: "4-Wheeler", brand: "Hyundai", model: "Venue", yearFrom: 2019, yearTo: 2024 },
+    // 4-Wheeler — Tata
+    { vehicleType: "4-Wheeler", brand: "Tata", model: "Nexon", yearFrom: 2020, yearTo: 2024 },
+    { vehicleType: "4-Wheeler", brand: "Tata", model: "Punch", yearFrom: 2021, yearTo: 2024 },
+    { vehicleType: "4-Wheeler", brand: "Tata", model: "Altroz", yearFrom: 2020, yearTo: 2024 },
+    // 4-Wheeler — Honda
+    { vehicleType: "4-Wheeler", brand: "Honda", model: "City", yearFrom: 2018, yearTo: 2024 },
+    { vehicleType: "4-Wheeler", brand: "Honda", model: "Amaze", yearFrom: 2018, yearTo: 2024 },
+    // 4-Wheeler — Mahindra
+    { vehicleType: "4-Wheeler", brand: "Mahindra", model: "XUV700", yearFrom: 2021, yearTo: 2024 },
+    { vehicleType: "4-Wheeler", brand: "Mahindra", model: "Thar", yearFrom: 2020, yearTo: 2024 },
+    // EV
+    { vehicleType: "EV", brand: "Ola", model: "S1 Pro", yearFrom: 2022, yearTo: 2024 },
+    { vehicleType: "EV", brand: "Ather", model: "450X", yearFrom: 2021, yearTo: 2024 },
+    { vehicleType: "EV", brand: "TVS", model: "iQube", yearFrom: 2022, yearTo: 2024 },
+    { vehicleType: "EV", brand: "Bajaj", model: "Chetak", yearFrom: 2022, yearTo: 2024 },
+    { vehicleType: "EV", brand: "Tata", model: "Nexon EV", yearFrom: 2021, yearTo: 2024 },
+    // Truck
+    { vehicleType: "Truck", brand: "Tata", model: "Ace", yearFrom: 2015, yearTo: 2024 },
+    { vehicleType: "Truck", brand: "Mahindra", model: "Bolero Pickup", yearFrom: 2016, yearTo: 2024 },
+    { vehicleType: "Truck", brand: "Ashok Leyland", model: "Dost", yearFrom: 2017, yearTo: 2024 },
+  ];
+
+  await prisma.vehicleMasterData.createMany({
+    data: vehicleMasterEntries,
+  });
+
+  console.log(`  Created ${vehicleMasterEntries.length} vehicle master entries`);
+
+  // --- Spare Parts (~25 parts with category and serialNumber) ---
   const parts = await Promise.all([
-    prisma.sparePart.create({
-      data: { workshopId: workshops[0].id, name: "Brake Pad Set - Honda Activa", vehicleType: "2-Wheeler", brand: "Honda", condition: "LIKE_NEW", price: 450, marketPrice: 750, stock: 12 },
-    }),
-    prisma.sparePart.create({
-      data: { workshopId: workshops[1].id, name: "Clutch Plate - Bajaj Pulsar 150", vehicleType: "2-Wheeler", brand: "Bajaj", condition: "REFURBISHED", price: 680, marketPrice: 1200, stock: 5 },
-    }),
-    prisma.sparePart.create({
-      data: { workshopId: workshops[0].id, name: "Head Light Assembly - Hero Splendor", vehicleType: "2-Wheeler", brand: "Hero", condition: "OEM_SURPLUS", price: 1100, marketPrice: 1800, stock: 8 },
-    }),
-    prisma.sparePart.create({
-      data: { workshopId: workshops[1].id, name: "Radiator Fan Motor - Maruti Swift", vehicleType: "4-Wheeler", brand: "Maruti", condition: "USED_GOOD", price: 2200, marketPrice: 4500, stock: 3 },
-    }),
-    prisma.sparePart.create({
-      data: { workshopId: workshops[2].id, name: "Alternator - Hyundai i20", vehicleType: "4-Wheeler", brand: "Hyundai", condition: "REFURBISHED", price: 3500, marketPrice: 6800, stock: 0 },
-    }),
-    prisma.sparePart.create({
-      data: { workshopId: workshops[1].id, name: "Suspension Coil Spring - Tata Nexon", vehicleType: "4-Wheeler", brand: "Tata", condition: "LIKE_NEW", price: 1800, marketPrice: 3200, stock: 6 },
-    }),
-    prisma.sparePart.create({
-      data: { workshopId: workshops[2].id, name: "Battery 12V 35Ah - Bajaj Chetak EV", vehicleType: "EV", brand: "Bajaj", condition: "OEM_SURPLUS", price: 8500, marketPrice: 14000, stock: 4 },
-    }),
-    prisma.sparePart.create({
-      data: { workshopId: workshops[4].id, name: "Air Filter - Tata Ace Truck", vehicleType: "Truck", brand: "Tata", condition: "USED_GOOD", price: 950, marketPrice: 1600, stock: 15 },
-    }),
-    prisma.sparePart.create({
-      data: { workshopId: workshops[4].id, name: "Disc Brake Rotor - Honda City", vehicleType: "4-Wheeler", brand: "Honda", condition: "REFURBISHED", price: 2800, marketPrice: 5200, stock: 7 },
-    }),
+    // Workshop 0 — Sharma Auto (Honda, TVS, Hero)
+    prisma.sparePart.create({ data: { workshopId: workshops[0].id, name: "Brake Pad Set - Honda Activa", vehicleType: "2-Wheeler", brand: "Honda", model: "Activa 6G", category: "brakes", serialNumber: "BP-HON-001", condition: "LIKE_NEW", price: 450, marketPrice: 750, stock: 12 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[0].id, name: "Head Light Assembly - Hero Splendor", vehicleType: "2-Wheeler", brand: "Hero", model: "Splendor Plus", category: "electrical", serialNumber: "HL-HER-002", condition: "OEM_SURPLUS", price: 1100, marketPrice: 1800, stock: 8 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[0].id, name: "CDI Unit - Honda Shine", vehicleType: "2-Wheeler", brand: "Honda", model: "Shine 125", category: "electrical", serialNumber: "CDI-HON-003", condition: "REFURBISHED", price: 850, marketPrice: 1500, stock: 6 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[0].id, name: "Exhaust Silencer - TVS Jupiter", vehicleType: "2-Wheeler", brand: "TVS", model: "Jupiter", category: "exhaust", serialNumber: "EX-TVS-004", condition: "USED_GOOD", price: 1200, marketPrice: 2400, stock: 3 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[0].id, name: "Speedometer Cable - Hero HF Deluxe", vehicleType: "2-Wheeler", brand: "Hero", model: "HF Deluxe", category: "body", serialNumber: "SC-HER-005", condition: "LIKE_NEW", price: 180, marketPrice: 350, stock: 20 } }),
+
+    // Workshop 1 — Patel (Bajaj, Royal Enfield)
+    prisma.sparePart.create({ data: { workshopId: workshops[1].id, name: "Clutch Plate - Bajaj Pulsar 150", vehicleType: "2-Wheeler", brand: "Bajaj", model: "Pulsar 150", category: "transmission", serialNumber: "CP-BAJ-006", condition: "REFURBISHED", price: 680, marketPrice: 1200, stock: 5 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[1].id, name: "Radiator Fan Motor - Maruti Swift", vehicleType: "4-Wheeler", brand: "Maruti", model: "Swift", category: "engine", serialNumber: "RF-MAR-007", condition: "USED_GOOD", price: 2200, marketPrice: 4500, stock: 3 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[1].id, name: "Suspension Coil Spring - Tata Nexon", vehicleType: "4-Wheeler", brand: "Tata", model: "Nexon", category: "suspension", serialNumber: "SS-TAT-008", condition: "LIKE_NEW", price: 1800, marketPrice: 3200, stock: 6 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[1].id, name: "Rear Brake Shoe - Royal Enfield Classic", vehicleType: "2-Wheeler", brand: "Royal Enfield", model: "Classic 350", category: "brakes", serialNumber: "BS-RE-009", condition: "OEM_SURPLUS", price: 550, marketPrice: 900, stock: 10 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[1].id, name: "Stator Coil - Bajaj NS200", vehicleType: "2-Wheeler", brand: "Bajaj", model: "Pulsar NS200", category: "electrical", serialNumber: "ST-BAJ-010", condition: "REFURBISHED", price: 1400, marketPrice: 2800, stock: 2 } }),
+
+    // Workshop 2 — Bengaluru EV Hub
+    prisma.sparePart.create({ data: { workshopId: workshops[2].id, name: "Alternator - Hyundai i20", vehicleType: "4-Wheeler", brand: "Hyundai", model: "i20", category: "electrical", serialNumber: "AL-HYU-011", condition: "REFURBISHED", price: 3500, marketPrice: 6800, stock: 0 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[2].id, name: "Battery 12V 35Ah - Bajaj Chetak EV", vehicleType: "EV", brand: "Bajaj", model: "Chetak", category: "electrical", serialNumber: "BT-BAJ-012", condition: "OEM_SURPLUS", price: 8500, marketPrice: 14000, stock: 4 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[2].id, name: "Controller Unit - Ola S1 Pro", vehicleType: "EV", brand: "Ola", model: "S1 Pro", category: "electrical", serialNumber: "CU-OLA-013", condition: "LIKE_NEW", price: 6200, marketPrice: 11000, stock: 2 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[2].id, name: "Hub Motor - Ather 450X", vehicleType: "EV", brand: "Ather", model: "450X", category: "engine", serialNumber: "HM-ATH-014", condition: "REFURBISHED", price: 9800, marketPrice: 18500, stock: 1 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[2].id, name: "Charger Unit - TVS iQube", vehicleType: "EV", brand: "TVS", model: "iQube", category: "electrical", serialNumber: "CH-TVS-015", condition: "OEM_SURPLUS", price: 4500, marketPrice: 7500, stock: 5 } }),
+
+    // Workshop 3 — Krishna Motor (Yamaha, Suzuki)
+    prisma.sparePart.create({ data: { workshopId: workshops[3].id, name: "Carburetor - Yamaha FZ-S", vehicleType: "2-Wheeler", brand: "Yamaha", model: "FZ-S V3", category: "engine", serialNumber: "CB-YAM-016", condition: "USED_GOOD", price: 1600, marketPrice: 3200, stock: 4 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[3].id, name: "Fuel Pump - Suzuki Access 125", vehicleType: "2-Wheeler", brand: "Suzuki", model: "Access 125", category: "engine", serialNumber: "FP-SUZ-017", condition: "REFURBISHED", price: 1100, marketPrice: 2200, stock: 7 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[3].id, name: "Side Mirror Set - Yamaha R15", vehicleType: "2-Wheeler", brand: "Yamaha", model: "R15 V4", category: "body", serialNumber: "SM-YAM-018", condition: "LIKE_NEW", price: 750, marketPrice: 1400, stock: 9 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[3].id, name: "Chain Sprocket Kit - Suzuki Gixxer", vehicleType: "2-Wheeler", brand: "Suzuki", model: "Gixxer 150", category: "transmission", serialNumber: "CS-SUZ-019", condition: "OEM_SURPLUS", price: 1350, marketPrice: 2500, stock: 3 } }),
+
+    // Workshop 4 — Mukherjee Bike World (Hero, Honda, Bajaj)
+    prisma.sparePart.create({ data: { workshopId: workshops[4].id, name: "Air Filter - Tata Ace Truck", vehicleType: "Truck", brand: "Tata", model: "Ace", category: "engine", serialNumber: "AF-TAT-020", condition: "USED_GOOD", price: 950, marketPrice: 1600, stock: 15 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[4].id, name: "Disc Brake Rotor - Honda City", vehicleType: "4-Wheeler", brand: "Honda", model: "City", category: "brakes", serialNumber: "DB-HON-021", condition: "REFURBISHED", price: 2800, marketPrice: 5200, stock: 7 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[4].id, name: "Piston Ring Set - Hero Passion Pro", vehicleType: "2-Wheeler", brand: "Hero", model: "Passion Pro", category: "engine", serialNumber: "PR-HER-022", condition: "OEM_SURPLUS", price: 480, marketPrice: 900, stock: 18 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[4].id, name: "Ignition Coil - Bajaj Platina", vehicleType: "2-Wheeler", brand: "Bajaj", model: "Platina 110", category: "electrical", serialNumber: "IC-BAJ-023", condition: "LIKE_NEW", price: 620, marketPrice: 1100, stock: 11 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[4].id, name: "Tail Light Assembly - Honda Activa", vehicleType: "2-Wheeler", brand: "Honda", model: "Activa 6G", category: "electrical", serialNumber: "TL-HON-024", condition: "USED_GOOD", price: 380, marketPrice: 700, stock: 14 } }),
+    prisma.sparePart.create({ data: { workshopId: workshops[4].id, name: "Front Fork Oil Seal - Royal Enfield", vehicleType: "2-Wheeler", brand: "Royal Enfield", model: "Meteor 350", category: "suspension", serialNumber: "FO-RE-025", condition: "REFURBISHED", price: 350, marketPrice: 650, stock: 8 } }),
   ]);
 
-  console.log("  Created spare parts");
+  console.log(`  Created ${parts.length} spare parts`);
 
   // --- Breakdown Requests ---
   const emergencyTypes = [
@@ -347,22 +441,25 @@ async function main() {
 
   console.log("  Created breakdown requests");
 
-  // --- Part Orders ---
+  // --- Part Orders (~15 orders across workshops, mixed statuses) ---
   const orderStatuses = [
     "DELIVERED", "CONFIRMED", "SHIPPED", "PENDING", "DELIVERED",
-    "RETURNED", "CONFIRMED", "SHIPPED",
+    "RETURNED", "CONFIRMED", "SHIPPED", "DELIVERED", "PENDING",
+    "CONFIRMED", "DELIVERED", "SHIPPED", "CANCELLED", "DELIVERED",
   ] as const;
 
   const paymentStatuses = [
     "PAID", "ESCROW", "COD", "PAID", "PAID",
-    "REFUNDED", "COD", "PAID",
+    "REFUNDED", "COD", "PAID", "PAID", "PENDING",
+    "ESCROW", "PAID", "COD", "REFUNDED", "PAID",
   ] as const;
 
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 15; i++) {
     const part = parts[i % parts.length];
     const buyer = riders[i % riders.length];
+    const qty = i % 3 === 0 ? 2 : 1;
 
-    const subtotal = part.price;
+    const subtotal = part.price * qty;
     const gst = Math.round(subtotal * 0.18);
 
     await prisma.partOrder.create({
@@ -371,7 +468,7 @@ async function main() {
         partId: part.id,
         buyerId: buyer.id,
         workshopId: part.workshopId,
-        quantity: 1,
+        quantity: qty,
         unitPrice: part.price,
         subtotal,
         gstAmount: gst,
@@ -382,7 +479,7 @@ async function main() {
     });
   }
 
-  console.log("  Created orders");
+  console.log("  Created 15 orders");
 
   // --- Ratings ---
   for (let i = 0; i < mechanics.length; i++) {
@@ -456,6 +553,11 @@ async function main() {
 
   console.log("  Created notifications");
   console.log("✅ Seed complete!");
+  console.log("");
+  console.log("📋 Demo Login Credentials:");
+  console.log("  Admin:    9999999999 / 123456");
+  console.log("  Workshop: 9811234567 / 123456 (Sharma Auto Spares)");
+  console.log("  Workshop: 8765543211 / 123456 (Patel Two-Wheeler Parts)");
 }
 
 main()

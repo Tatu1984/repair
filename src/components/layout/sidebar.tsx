@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   BoxesIcon,
+  Car,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ const adminNavItems: NavItem[] = [
   { title: "Orders", href: "/orders", icon: ShoppingCart },
   { title: "Disputes", href: "/disputes", icon: Shield },
   { title: "Analytics", href: "/analytics", icon: BarChart3 },
+  { title: "Vehicle Master", href: "/vehicle-master", icon: Car },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 

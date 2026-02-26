@@ -41,6 +41,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSpareParts, useCreatePart } from "@/lib/hooks/use-marketplace";
+import { useVehicleMaster } from "@/lib/hooks/use-vehicle-master";
 import { toast } from "sonner";
 
 // --- Constants ---
@@ -205,6 +206,9 @@ function AddListingModal({
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const createPart = useCreatePart();
+  const { data: vmData } = useVehicleMaster();
+  const grouped = vmData?.grouped ?? {};
+  const vehicleTypes = Object.keys(grouped);
 
   const set = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -292,25 +296,33 @@ function AddListingModal({
             )}
           </div>
 
-          {/* Vehicle Type + Brand */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Cascading: Vehicle Type → Brand → Model */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label>
                 Vehicle Type <span className="text-destructive">*</span>
               </Label>
               <Select
                 value={form.vehicleType}
-                onValueChange={(v) => set("vehicleType", v)}
+                onValueChange={(v) => {
+                  set("vehicleType", v);
+                  set("brand", "");
+                  set("model", "");
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {VEHICLE_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
+                  {vehicleTypes.length > 0 ? (
+                    vehicleTypes.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))
+                  ) : (
+                    VEHICLE_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               {errors.vehicleType && (
@@ -319,56 +331,83 @@ function AddListingModal({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="part-brand">
+              <Label>
                 Brand <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="part-brand"
-                placeholder="e.g. Honda"
+              <Select
                 value={form.brand}
-                onChange={(e) => set("brand", e.target.value)}
-              />
+                onValueChange={(v) => {
+                  set("brand", v);
+                  set("model", "");
+                }}
+                disabled={!form.vehicleType}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select brand" />
+                </SelectTrigger>
+                <SelectContent>
+                  {form.vehicleType && grouped[form.vehicleType] ? (
+                    Object.keys(grouped[form.vehicleType]).map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>Select type first</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
               {errors.brand && (
                 <p className="text-xs text-destructive">{errors.brand}</p>
               )}
             </div>
-          </div>
-
-          {/* Model + Condition */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="part-model">Model</Label>
-              <Input
-                id="part-model"
-                placeholder="e.g. Activa 6G"
-                value={form.model}
-                onChange={(e) => set("model", e.target.value)}
-              />
-            </div>
 
             <div className="space-y-1.5">
-              <Label>
-                Condition <span className="text-destructive">*</span>
-              </Label>
+              <Label>Model</Label>
               <Select
-                value={form.condition}
-                onValueChange={(v) => set("condition", v)}
+                value={form.model}
+                onValueChange={(v) => set("model", v)}
+                disabled={!form.brand}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select condition" />
+                  <SelectValue placeholder="Select model" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CONDITIONS.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
+                  {form.vehicleType && form.brand && grouped[form.vehicleType]?.[form.brand] ? (
+                    grouped[form.vehicleType][form.brand]
+                      .filter((m) => m.model)
+                      .map((m) => (
+                        <SelectItem key={m.id} value={m.model!}>{m.model}</SelectItem>
+                      ))
+                  ) : (
+                    <SelectItem value="" disabled>Select brand first</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
-              {errors.condition && (
-                <p className="text-xs text-destructive">{errors.condition}</p>
-              )}
             </div>
+          </div>
+
+          {/* Condition */}
+          <div className="space-y-1.5">
+            <Label>
+              Condition <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={form.condition}
+              onValueChange={(v) => set("condition", v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select condition" />
+              </SelectTrigger>
+              <SelectContent>
+                {CONDITIONS.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.condition && (
+              <p className="text-xs text-destructive">{errors.condition}</p>
+            )}
           </div>
 
           {/* Price + Market Price + Stock */}
@@ -475,6 +514,14 @@ export default function MarketplacePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [addListingOpen, setAddListingOpen] = useState(false);
+
+  const { data: vmData } = useVehicleMaster();
+  const vmGrouped = vmData?.grouped ?? {};
+  const vmVehicleTypes = Object.keys(vmGrouped);
+  // Get all unique brands from vehicle master (or filter by selected type)
+  const vmBrands = vehicleType !== "all" && vmGrouped[vehicleType]
+    ? Object.keys(vmGrouped[vehicleType])
+    : [...new Set(Object.values(vmGrouped).flatMap((b) => Object.keys(b)))];
 
   const itemsPerPage = 6;
 
@@ -653,6 +700,7 @@ export default function MarketplacePage() {
                       value={vehicleType}
                       onValueChange={(v) => {
                         setVehicleType(v);
+                        setBrandFilter("all");
                         setCurrentPage(1);
                       }}
                     >
@@ -661,10 +709,18 @@ export default function MarketplacePage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Vehicles</SelectItem>
-                        <SelectItem value="2-Wheeler">2-Wheeler</SelectItem>
-                        <SelectItem value="4-Wheeler">4-Wheeler</SelectItem>
-                        <SelectItem value="EV">EV</SelectItem>
-                        <SelectItem value="Truck">Truck</SelectItem>
+                        {vmVehicleTypes.length > 0 ? (
+                          vmVehicleTypes.map((t) => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          ))
+                        ) : (
+                          <>
+                            <SelectItem value="2-Wheeler">2-Wheeler</SelectItem>
+                            <SelectItem value="4-Wheeler">4-Wheeler</SelectItem>
+                            <SelectItem value="EV">EV</SelectItem>
+                            <SelectItem value="Truck">Truck</SelectItem>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
 
@@ -680,7 +736,7 @@ export default function MarketplacePage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Brands</SelectItem>
-                        {brands.map((b) => (
+                        {(vmBrands.length > 0 ? vmBrands : brands).map((b) => (
                           <SelectItem key={b} value={b}>
                             {b}
                           </SelectItem>
