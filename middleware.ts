@@ -34,6 +34,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/mechanics") || pathname.startsWith("/workshops") ||
       pathname.startsWith("/marketplace") || pathname.startsWith("/orders") ||
       pathname.startsWith("/disputes") || pathname.startsWith("/analytics") ||
+      pathname.startsWith("/vehicle-master") || pathname.startsWith("/my-inventory") ||
       pathname.startsWith("/settings")) {
 
     // Check cookie or Authorization header

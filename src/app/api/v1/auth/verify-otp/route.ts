@@ -4,6 +4,9 @@ import { signAccessToken, signRefreshToken } from "@/lib/auth";
 import { verifyOtpSchema } from "@/lib/validations/auth";
 import crypto from "crypto";
 
+// Demo phones that use persistent OTPs (seeded with expiry 2030)
+const DEMO_PHONES = new Set(["9999999999", "9811234567", "8765543211"]);
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -17,35 +20,14 @@ export async function POST(req: Request) {
     }
 
     const { phone, otp, role } = parsed.data;
+    const isDemo = DEMO_PHONES.has(phone) && otp === "123456";
 
-    // Demo shortcut: skip DB for demo phone number
-    if (phone === "9999999999" && otp === "123456") {
-      const demoUserId = "demo-admin-user";
-      const demoRole = (role as string) || "ADMIN";
-      const accessToken = await signAccessToken(demoUserId, demoRole);
-      const refreshTokenValue = await signRefreshToken(demoUserId);
-
-      return NextResponse.json({
-        success: true,
-        user: {
-          id: demoUserId,
-          phone: "9999999999",
-          name: "Demo Admin",
-          email: "admin@repairassist.in",
-          role: demoRole,
-          avatarUrl: null,
-        },
-        accessToken,
-        refreshToken: refreshTokenValue,
-      });
-    }
-
-    // Verify OTP
+    // Verify OTP — for demo phones, allow already-verified OTPs
     const otpRecord = await prisma.otpVerification.findFirst({
       where: {
         phone,
         otp,
-        verified: false,
+        ...(isDemo ? {} : { verified: false }),
         expiresAt: { gt: new Date() },
       },
     });
@@ -57,11 +39,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // Mark OTP as verified
-    await prisma.otpVerification.update({
-      where: { id: otpRecord.id },
-      data: { verified: true },
-    });
+    // Mark OTP as verified (demo OTPs can be re-used regardless)
+    if (!otpRecord.verified) {
+      await prisma.otpVerification.update({
+        where: { id: otpRecord.id },
+        data: { verified: true },
+      });
+    }
 
     // Find or create user
     let user = await prisma.user.findUnique({ where: { phone } });
