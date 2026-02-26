@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { sendOtpSchema } from "@/lib/validations/auth";
 
+// Demo phones with persistent OTPs (seeded with expiry 2030)
+const DEMO_PHONES = new Set(["9999999999", "9811234567", "8765543211"]);
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -16,8 +19,8 @@ export async function POST(req: Request) {
 
     const { phone } = parsed.data;
 
-    // Demo shortcut: skip DB for demo phone number
-    if (phone === "9999999999") {
+    // Demo phones: skip DB mutations, use persistent seeded OTPs
+    if (DEMO_PHONES.has(phone)) {
       return NextResponse.json({
         success: true,
         message: `OTP sent to +91 ${phone}`,

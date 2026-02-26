@@ -1,6 +1,7 @@
 import { useAuthStore } from "./store/auth-store";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "";
+// Always use relative URLs — the client runs on the same origin as the API
+const BASE_URL = "";
 
 interface FetchOptions extends RequestInit {
   skipAuth?: boolean;
