@@ -65,9 +65,9 @@ export async function POST(req: Request) {
   }, ["RIDER", "MECHANIC"]);
 }
 
-// GET - List all orders (Admin)
+// GET - List orders (Admin sees all, Rider/Mechanic see their own)
 export async function GET(req: Request) {
-  return withAuth(req, async (req, _user: JWTPayload) => {
+  return withAuth(req, async (req, user: JWTPayload) => {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -76,6 +76,11 @@ export async function GET(req: Request) {
     const where: Record<string, unknown> = {};
     if (status && status !== "all") {
       where.orderStatus = status.toUpperCase();
+    }
+
+    // Non-admin users can only see their own orders
+    if (user.role !== "ADMIN") {
+      where.buyerId = user.userId;
     }
 
     const [orders, total] = await Promise.all([
@@ -97,5 +102,5 @@ export async function GET(req: Request) {
       orders,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-  }, ["ADMIN"]);
+  });
 }

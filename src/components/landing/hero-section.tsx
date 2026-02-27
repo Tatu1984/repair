@@ -175,7 +175,7 @@ export function HeroSection() {
             className="mt-8 flex flex-col gap-3 sm:flex-row"
           >
             <Button size="lg" className="h-12 px-8 text-base font-semibold shadow-lg shadow-primary/25" asChild>
-              <Link href="/sos">
+              <Link href="/login">
                 <Zap className="size-5" />
                 Get Help Now
               </Link>
@@ -186,7 +186,7 @@ export function HeroSection() {
               className="h-12 px-8 text-base font-semibold"
               asChild
             >
-              <Link href="/register?role=mechanic">
+              <Link href="/login">
                 <Wrench className="size-5" />
                 Join as Mechanic
               </Link>

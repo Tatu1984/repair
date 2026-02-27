@@ -124,7 +124,7 @@ export function Navbar() {
                   Login
                 </Link>
                 <Button className="mt-2" asChild>
-                  <Link href="/register" onClick={() => setMobileOpen(false)}>
+                  <Link href="/login" onClick={() => setMobileOpen(false)}>
                     Get Started
                   </Link>
                 </Button>

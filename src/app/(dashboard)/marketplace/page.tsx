@@ -351,7 +351,7 @@ function AddListingModal({
                       <SelectItem key={b} value={b}>{b}</SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="" disabled>Select type first</SelectItem>
+                    <SelectItem value="__placeholder__" disabled>Select type first</SelectItem>
                   )}
                 </SelectContent>
               </Select>
@@ -378,7 +378,7 @@ function AddListingModal({
                         <SelectItem key={m.id} value={m.model!}>{m.model}</SelectItem>
                       ))
                   ) : (
-                    <SelectItem value="" disabled>Select brand first</SelectItem>
+                    <SelectItem value="__placeholder__" disabled>Select brand first</SelectItem>
                   )}
                 </SelectContent>
               </Select>

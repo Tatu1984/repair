@@ -104,7 +104,7 @@ export function CtaSection() {
           transition={{ duration: 0.5, delay: 0.4 }}
         >
           <Link
-            href="/register?role=mechanic"
+            href="/login"
             className="group inline-flex items-center gap-2 text-sm font-medium text-white/70 transition-colors hover:text-white"
           >
             <Wrench className="size-4" />
