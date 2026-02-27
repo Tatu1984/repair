@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { withAuth } from "@/lib/middleware";
+import { withAuth, getOrCreateWorkshop } from "@/lib/middleware";
 import type { JWTPayload } from "@/lib/auth";
 import { updateWorkshopProfileSchema } from "@/lib/validations/workshop";
 
@@ -8,8 +8,11 @@ export async function GET(req: Request) {
   return withAuth(
     req,
     async (_req, user: JWTPayload) => {
-      const workshop = await prisma.workshop.findUnique({
-        where: { ownerId: user.userId },
+      const workshop = await getOrCreateWorkshop(user.userId);
+
+      // Re-fetch with owner relation included
+      const workshopWithOwner = await prisma.workshop.findUnique({
+        where: { id: workshop.id },
         include: {
           owner: {
             select: { name: true, phone: true, email: true, avatarUrl: true },
@@ -17,14 +20,7 @@ export async function GET(req: Request) {
         },
       });
 
-      if (!workshop) {
-        return NextResponse.json(
-          { error: "Workshop not found" },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json({ workshop });
+      return NextResponse.json({ workshop: workshopWithOwner });
     },
     ["WORKSHOP"]
   );
@@ -34,16 +30,7 @@ export async function PUT(req: Request) {
   return withAuth(
     req,
     async (req, user: JWTPayload) => {
-      const workshop = await prisma.workshop.findUnique({
-        where: { ownerId: user.userId },
-      });
-
-      if (!workshop) {
-        return NextResponse.json(
-          { error: "Workshop not found" },
-          { status: 404 }
-        );
-      }
+      const workshop = await getOrCreateWorkshop(user.userId);
 
       const body = await req.json();
       const parsed = updateWorkshopProfileSchema.safeParse(body);

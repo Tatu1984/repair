@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { withAuth } from "@/lib/middleware";
+import { withAuth, getOrCreateWorkshop } from "@/lib/middleware";
 import type { JWTPayload } from "@/lib/auth";
 import { workshopInventoryFilterSchema } from "@/lib/validations/workshop";
 import type { Prisma } from "@prisma/client";
@@ -9,16 +9,7 @@ export async function GET(req: Request) {
   return withAuth(
     req,
     async (req, user: JWTPayload) => {
-      const workshop = await prisma.workshop.findUnique({
-        where: { ownerId: user.userId },
-      });
-
-      if (!workshop) {
-        return NextResponse.json(
-          { error: "Workshop not found" },
-          { status: 404 }
-        );
-      }
+      const workshop = await getOrCreateWorkshop(user.userId);
 
       const url = new URL(req.url);
       const params = Object.fromEntries(url.searchParams.entries());

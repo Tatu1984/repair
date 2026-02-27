@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { withAuth } from "@/lib/middleware";
+import { withAuth, getOrCreateWorkshop } from "@/lib/middleware";
 import type { JWTPayload } from "@/lib/auth";
 
 export async function GET(req: Request) {
   return withAuth(
     req,
     async (_req, user: JWTPayload) => {
-      const workshop = await prisma.workshop.findUnique({
-        where: { ownerId: user.userId },
-      });
-
-      if (!workshop) {
-        return NextResponse.json(
-          { error: "Workshop not found" },
-          { status: 404 }
-        );
-      }
+      const workshop = await getOrCreateWorkshop(user.userId);
 
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

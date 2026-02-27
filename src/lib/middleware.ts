@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAccessToken, getTokenFromRequest, type JWTPayload } from "./auth";
+import { prisma } from "./db";
 
 export interface AuthenticatedRequest extends Request {
   user?: JWTPayload;
@@ -35,4 +36,30 @@ export async function withAuth(
   }
 
   return handler(req, payload);
+}
+
+/**
+ * Find or auto-create a Workshop record for a WORKSHOP user.
+ * Ensures workshop users always have a functioning portal.
+ */
+export async function getOrCreateWorkshop(userId: string) {
+  let workshop = await prisma.workshop.findUnique({
+    where: { ownerId: userId },
+  });
+
+  if (!workshop) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, phone: true },
+    });
+    workshop = await prisma.workshop.create({
+      data: {
+        ownerId: userId,
+        name: user?.name || `Workshop ${user?.phone || ""}`,
+        address: "",
+      },
+    });
+  }
+
+  return workshop;
 }

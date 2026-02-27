@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { withAuth } from "@/lib/middleware";
+import { withAuth, getOrCreateWorkshop } from "@/lib/middleware";
 import { createPartSchema, searchPartsSchema } from "@/lib/validations/marketplace";
 import type { JWTPayload } from "@/lib/auth";
 import type { Prisma } from "@prisma/client";
@@ -65,13 +65,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const workshop = await prisma.workshop.findUnique({
-      where: { ownerId: user.userId },
-    });
-
-    if (!workshop) {
-      return NextResponse.json({ error: "Not a workshop owner" }, { status: 403 });
-    }
+    const workshop = await getOrCreateWorkshop(user.userId);
 
     const part = await prisma.sparePart.create({
       data: {

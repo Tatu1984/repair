@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDisputes, useResolveDispute } from "@/lib/hooks/use-disputes";
+import { useAuthStore } from "@/lib/store/auth-store";
 import { toast } from "sonner";
 
 // --- Types ---
@@ -359,6 +360,8 @@ export default function DisputesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [resolvingDispute, setResolvingDispute] = useState<any | null>(null);
   const [viewingDispute, setViewingDispute] = useState<any | null>(null);
+  const userRole = useAuthStore((s) => s.user?.role);
+  const isAdmin = userRole === "ADMIN";
 
   const {
     data,
@@ -652,7 +655,7 @@ export default function DisputesPage() {
 
                         {/* Right: Action */}
                         <div className="flex shrink-0 items-start">
-                          {dispute.status === "OPEN" ? (
+                          {isAdmin && dispute.status === "OPEN" ? (
                             <Button
                               variant="default"
                               size="sm"
@@ -662,7 +665,7 @@ export default function DisputesPage() {
                               {resolveDispute.isPending ? "Updating..." : "Review"}
                               <ArrowRight className="size-3.5" />
                             </Button>
-                          ) : dispute.status === "UNDER_REVIEW" ? (
+                          ) : isAdmin && dispute.status === "UNDER_REVIEW" ? (
                             <Button
                               variant="default"
                               size="sm"

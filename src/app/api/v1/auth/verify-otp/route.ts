@@ -56,6 +56,22 @@ export async function POST(req: Request) {
       });
     }
 
+    // Auto-provision Workshop record for WORKSHOP users
+    if (user.role === "WORKSHOP") {
+      const existingWorkshop = await prisma.workshop.findUnique({
+        where: { ownerId: user.id },
+      });
+      if (!existingWorkshop) {
+        await prisma.workshop.create({
+          data: {
+            ownerId: user.id,
+            name: user.name || `Workshop ${user.phone}`,
+            address: "",
+          },
+        });
+      }
+    }
+
     // Generate tokens
     const accessToken = await signAccessToken(user.id, user.role);
     const refreshTokenValue = await signRefreshToken(user.id);

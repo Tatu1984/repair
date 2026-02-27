@@ -35,9 +35,9 @@ export async function POST(req: Request) {
   });
 }
 
-// GET - List all disputes (Admin)
+// GET - List disputes (Admin sees all, others see only their own)
 export async function GET(req: Request) {
-  return withAuth(req, async (req, _user: JWTPayload) => {
+  return withAuth(req, async (req, user: JWTPayload) => {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const page = parseInt(searchParams.get("page") || "1");
@@ -46,6 +46,11 @@ export async function GET(req: Request) {
     const where: Record<string, unknown> = {};
     if (status && status !== "all") {
       where.status = status.toUpperCase().replace(" ", "_");
+    }
+
+    // Non-admin users only see disputes they raised
+    if (user.role !== "ADMIN") {
+      where.raisedById = user.userId;
     }
 
     const [disputes, total] = await Promise.all([
@@ -65,5 +70,5 @@ export async function GET(req: Request) {
       disputes,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-  }, ["ADMIN"]);
+  });
 }
