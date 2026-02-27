@@ -22,25 +22,24 @@ export async function POST(req: Request) {
     const { phone, otp, role } = parsed.data;
     const isDemo = DEMO_PHONES.has(phone) && otp === "123456";
 
-    // Verify OTP — for demo phones, allow already-verified OTPs
-    const otpRecord = await prisma.otpVerification.findFirst({
-      where: {
-        phone,
-        otp,
-        ...(isDemo ? {} : { verified: false }),
-        expiresAt: { gt: new Date() },
-      },
-    });
+    // Demo phones: skip DB OTP lookup entirely (OTPs may not be seeded)
+    if (!isDemo) {
+      const otpRecord = await prisma.otpVerification.findFirst({
+        where: {
+          phone,
+          otp,
+          verified: false,
+          expiresAt: { gt: new Date() },
+        },
+      });
 
-    if (!otpRecord) {
-      return NextResponse.json(
-        { error: "Invalid or expired OTP" },
-        { status: 400 }
-      );
-    }
+      if (!otpRecord) {
+        return NextResponse.json(
+          { error: "Invalid or expired OTP" },
+          { status: 400 }
+        );
+      }
 
-    // Mark OTP as verified (demo OTPs can be re-used regardless)
-    if (!otpRecord.verified) {
       await prisma.otpVerification.update({
         where: { id: otpRecord.id },
         data: { verified: true },

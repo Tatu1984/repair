@@ -438,10 +438,11 @@ export default function LoginPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45, duration: 0.4 }}
+            className="flex gap-2"
           >
             <Button
               variant="secondary"
-              className="w-full gap-2"
+              className="flex-1 gap-2"
               size="lg"
               onClick={async () => {
                 setIsLoading(true);
@@ -458,8 +459,30 @@ export default function LoginPage() {
               }}
               disabled={isLoading}
             >
-              <ChevronRight className="h-4 w-4" />
-              Quick Demo Login (Skip OTP)
+              <UserCog className="h-4 w-4" />
+              Admin Demo
+            </Button>
+            <Button
+              variant="secondary"
+              className="flex-1 gap-2"
+              size="lg"
+              onClick={async () => {
+                setIsLoading(true);
+                setError("");
+                try {
+                  await sendOtpApi("9811234567", "workshop");
+                  await verifyOtpApi("9811234567", "123456", "workshop");
+                  router.push("/dashboard");
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Demo login failed");
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              disabled={isLoading}
+            >
+              <Building2 className="h-4 w-4" />
+              Workshop Demo
             </Button>
           </motion.div>
 
